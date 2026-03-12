@@ -217,7 +217,9 @@ validate_post_iteration() {
   latest_msg=$(git log -1 --pretty=format:"%s" 2>/dev/null || echo "")
   if [[ -n "$latest_msg" && "$latest_msg" != "$last_commit_msg" ]]; then
     local pattern="^WI-[0-9]{3,4}-(feat|fix|docs|style|refactor|test|chore|perf|ci|revert) .+"
-    if [[ ! "$latest_msg" =~ $pattern ]]; then
+    local pattern_system="^WI-(chore|docs) .+"
+    local pattern_merge="^Merge "
+    if [[ ! "$latest_msg" =~ $pattern && ! "$latest_msg" =~ $pattern_system && ! "$latest_msg" =~ $pattern_merge ]]; then
       log "VIOLATION: 커밋 메시지 형식 오류 - $latest_msg"
       violations=$((violations + 1))
     fi
@@ -368,14 +370,14 @@ execute_claude() {
   output=$(cat "$logfile")
 
   # 세션 ID 및 토큰 사용량 추출 (sed 사용 — Git Bash 호환)
-  local new_session_id input_tokens iteration_cost
+  local new_session_id iteration_cost
   new_session_id=$(echo "$output" | sed -n 's/.*"session_id"\s*:\s*"\([^"]*\)".*/\1/p' | head -1)
-  input_tokens=$(echo "$output" | sed -n 's/.*"input_tokens"\s*:\s*\([0-9]*\).*/\1/p' | head -1)
-  local cache_read=$(echo "$output" | sed -n 's/.*"cache_read_input_tokens"\s*:\s*\([0-9]*\).*/\1/p' | head -1)
   iteration_cost=$(echo "$output" | sed -n 's/.*"total_cost_usd"\s*:\s*\([0-9.]*\).*/\1/p' | head -1)
 
-  # 총 토큰 = input + cache_read (실제 컨텍스트 크기)
-  local total_context_tokens=$(( ${input_tokens:-0} + ${cache_read:-0} ))
+  # 컨텍스트 크기 추정: cache_creation_input_tokens = 대화에 추가된 고유 콘텐츠 누적합
+  # (cache_read는 매 턴마다 중복 카운트되므로 컨텍스트 크기로 사용하면 안 됨)
+  local cache_creation=$(echo "$output" | sed -n 's/.*"cache_creation_input_tokens"\s*:\s*\([0-9]*\).*/\1/p' | head -1)
+  local total_context_tokens=${cache_creation:-0}
 
   # 비용 표시: API 키 사용자만 (구독 사용자는 토큰만 표시)
   if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
