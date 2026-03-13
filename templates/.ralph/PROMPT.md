@@ -18,16 +18,17 @@
 append-system-prompt에 `[PARALLEL MODE]`가 포함되면 병렬 worktree에서 실행 중입니다.
 
 **병렬 모드 시 변경사항:**
-- 이미 작업 브랜치에 있음 → **별도 브랜치 생성 불필요**
-- PR 생성 불필요 → **현재 브랜치에서 직접 커밋**
-- 머지는 외부 루프가 처리 → **git checkout main / git merge 절대 금지**
-- **fix_plan.md 업데이트 금지** → 외부 루프가 머지 후 자동 처리 (6단계 스킵)
-- 즉, 아래 절차에서 "2. 브랜치 생성"과 "5. 커밋 & PR & 머지"와 "6. fix_plan.md 업데이트" 대신:
+- 이미 작업 브랜치에 있음 → **별도 브랜치 생성 불필요** (2단계 스킵)
+- PR 생성/머지는 외부 루프가 처리 → **5단계 스킵**
+- **fix_plan.md 업데이트 금지** → 외부 루프가 PR 후 자동 처리 (6단계 스킵)
+- **git checkout main / git merge 절대 금지**
+- 즉, 아래 절차에서 2, 5, 6단계 대신:
   ```bash
   git add {변경된 파일들}   # fix_plan.md 제외!
   git commit -m "WI-{NNN}-{type} {한글 작업명}"
   ```
   커밋만 하고 RALPH_STATUS 출력 후 즉시 종료
+- **주의:** 외부 루프가 이 브랜치를 push → PR 생성 → CI 검증 → auto-merge합니다. 코드 품질과 검증은 동일하게 적용됩니다.
 
 ## 실행 절차
 

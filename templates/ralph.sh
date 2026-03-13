@@ -40,6 +40,9 @@ PROMPT_FILE="${PROMPT_FILE:-.ralph/PROMPT.md}"
 LOG_DIR=".ralph/logs"
 ALLOWED_TOOLS="${ALLOWED_TOOLS:-Edit,Write,Read,Bash,Glob,Grep}"
 
+# 워커 토큰 제어
+MAX_TURNS=${MAX_TURNS:-25}  # 워커당 최대 턴 수 (0=무제한)
+
 # Parallel (1 = 순차, 2+ = 병렬 worktree)
 PARALLEL_COUNT=${PARALLEL_COUNT:-1}
 WORKTREE_DIR=".worktrees"
@@ -118,7 +121,9 @@ cleanup_worktrees() {
   if [[ -d "$WORKTREE_DIR" ]]; then
     for wt in "$WORKTREE_DIR"/worker-*; do
       [[ -d "$wt" ]] || continue
-      git worktree remove "$wt" --force 2>/dev/null || rm -rf "$wt"
+      git worktree remove "$wt" --force 2>/dev/null || {
+        log "WARN: worktree 제거 실패 — $wt (수동 정리 필요)"
+      }
     done
     rmdir "$WORKTREE_DIR" 2>/dev/null || true
     git worktree prune 2>/dev/null || true
@@ -199,13 +204,40 @@ preflight() {
     errors=$((errors + 1))
   fi
 
-  # 병렬 모드: uncommitted changes 사전 검사
+  # 병렬 모드: uncommitted changes 자동 정리
   if [[ ${PARALLEL_COUNT:-1} -gt 1 ]]; then
     if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
-      echo "ERROR: 병렬 모드에서는 uncommitted changes가 있으면 안 됩니다."
-      echo "       worktree 생성 시 충돌이 발생합니다. 먼저 커밋하세요."
-      echo "       git status 로 변경사항을 확인하세요."
-      errors=$((errors + 1))
+      echo "⚠️  uncommitted changes 감지 — 자동 커밋합니다"
+      git add -A 2>/dev/null
+      git commit -m "WI-chore 루프 재시작 전 uncommitted changes 자동 커밋" --no-verify 2>/dev/null || true
+      if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
+        echo "ERROR: 자동 커밋 실패. git status로 확인하세요."
+        errors=$((errors + 1))
+      fi
+    fi
+  fi
+
+  # 병렬 모드: stale worktree/branch 자동 정리
+  if [[ ${PARALLEL_COUNT:-1} -gt 1 ]]; then
+    local stale_wt
+    stale_wt=$(git worktree list --porcelain 2>/dev/null | grep "^worktree " | grep -v "$(pwd)$" | sed 's/^worktree //')
+    if [[ -n "$stale_wt" ]]; then
+      echo "🧹 stale worktree 정리 중..."
+      while IFS= read -r wt; do
+        git worktree remove "$wt" --force 2>/dev/null || {
+          log "WARN: stale worktree 제거 실패 — $wt (수동 정리 필요)"
+        }
+      done <<< "$stale_wt"
+      git worktree prune 2>/dev/null || true
+    fi
+    local stale_br
+    stale_br=$(git branch --list 'parallel/*' 2>/dev/null)
+    if [[ -n "$stale_br" ]]; then
+      echo "🧹 stale parallel 브랜치 정리 중..."
+      while IFS= read -r b; do
+        b=$(echo "$b" | tr -d ' *')
+        [[ -n "$b" ]] && git branch -D "$b" 2>/dev/null || true
+      done <<< "$stale_br"
     fi
   fi
 
@@ -341,7 +373,7 @@ build_context() {
   local target_wi
   target_wi=$(get_current_wi)
   local rag
-  rag=$(build_rag_context)
+  rag=$(build_rag_context "$target_wi")
   cat <<EOF
 [Ralph Loop #$loop_count] Completed: $completed | Remaining: $remaining
 [TARGET] ${target_wi}
@@ -466,8 +498,113 @@ check_wi_implemented() {
   return 1
 }
 
+suggest_relevant_files() {
+  # WI 이름에서 키워드를 추출하여 관련 파일 목록 제안
+  # 워커의 탐색 tool call을 줄여 토큰 절약
+  local wi_name="$1"
+  local suggestions=""
+
+  # 1. 영문 키워드 추출 (WI prefix, type, 일반 용어 제외)
+  local keywords
+  keywords=$(echo "$wi_name" | grep -oE '[A-Za-z]{3,}' \
+    | grep -vE '^(WI|feat|fix|docs|test|chore|refactor|style|perf|CRUD|API|KPI|DB)$' \
+    | head -5)
+
+  # 2. 한글 키워드 → 영문 패턴 매핑 (고빈도 도메인만)
+  local kr_patterns=""
+  [[ "$wi_name" == *"대시보드"* ]] && kr_patterns+="dashboard "
+  [[ "$wi_name" == *"관리"* ]] && kr_patterns+="admin manage "
+  [[ "$wi_name" == *"설정"* ]] && kr_patterns+="settings config "
+  [[ "$wi_name" == *"알림"* ]] && kr_patterns+="notification alert "
+  [[ "$wi_name" == *"권한"* ]] && kr_patterns+="permission role "
+  [[ "$wi_name" == *"예약"* ]] && kr_patterns+="reservation schedule booking "
+  [[ "$wi_name" == *"리포트"* || "$wi_name" == *"보고서"* ]] && kr_patterns+="report "
+  [[ "$wi_name" == *"직원"* || "$wi_name" == *"사원"* ]] && kr_patterns+="employee staff "
+  [[ "$wi_name" == *"결재"* || "$wi_name" == *"승인"* ]] && kr_patterns+="approval "
+  [[ "$wi_name" == *"캘린더"* || "$wi_name" == *"일정"* ]] && kr_patterns+="calendar "
+  [[ "$wi_name" == *"홈"* ]] && kr_patterns+="home "
+  [[ "$wi_name" == *"로그인"* || "$wi_name" == *"인증"* ]] && kr_patterns+="auth login "
+  [[ "$wi_name" == *"채팅"* || "$wi_name" == *"메시지"* ]] && kr_patterns+="chat message "
+  [[ "$wi_name" == *"프로필"* ]] && kr_patterns+="profile "
+  [[ "$wi_name" == *"검색"* ]] && kr_patterns+="search "
+
+  # 3. 키워드로 src/ 파일 검색 (1회 find → grep 필터링으로 최적화)
+  local all_keywords="$keywords"$'\n'
+  for kw in $kr_patterns; do
+    all_keywords+="$kw"$'\n'
+  done
+
+  if [[ -d "src" ]]; then
+    # 파일 목록 1회 캐싱 → 키워드별 grep (find N회 → 1회로 축소)
+    local file_cache
+    file_cache=$(find src -type f \( -name "*.tsx" -o -name "*.ts" \) 2>/dev/null)
+    if [[ -n "$file_cache" ]]; then
+      while IFS= read -r kw; do
+        [[ -z "$kw" ]] && continue
+        local found
+        found=$(echo "$file_cache" | grep -i -- "$kw" | head -3)
+        [[ -n "$found" ]] && suggestions+="$found"$'\n'
+      done <<< "$all_keywords"
+    fi
+  fi
+
+  # 4. wi-history에서 유사 WI의 파일 패턴 재활용
+  if [[ -f "$RAG_DIR/wi-history.md" ]]; then
+    while IFS= read -r kw; do
+      [[ -z "$kw" ]] && continue
+      local hist_files
+      hist_files=$(grep -i -- "$kw" "$RAG_DIR/wi-history.md" 2>/dev/null \
+        | sed 's/.*| //' | tr ',' '\n' | sed 's/^ *//' \
+        | grep -E '\.(tsx?|ts|prisma)$' | head -3)
+      [[ -n "$hist_files" ]] && suggestions+="$hist_files"$'\n'
+    done <<< "$keywords"
+  fi
+
+  # 5. DB 관련 WI → prisma 스키마 힌트
+  if [[ "$wi_name" == *"DB"* || "$wi_name" == *"스키마"* || "$wi_name" == *"테이블"* || "$wi_name" == *"모델"* ]]; then
+    [[ -f "prisma/schema.prisma" ]] && suggestions+="prisma/schema.prisma"$'\n'
+  fi
+
+  # 중복 제거 + 최대 10개
+  if [[ -n "$suggestions" ]]; then
+    echo "$suggestions" | sed '/^$/d' | sort -u | head -10
+  fi
+}
+
+record_pattern() {
+  # 워커 완료 후 성공/실패 패턴 기록 → 다음 워커가 학습
+  # $1: WI 이름, $2: result (merged|skipped|conflict|timeout), $3: files changed (comma-sep), $4: elapsed seconds
+  local wi_name="$1"
+  local result="$2"
+  local files="${3:-}"
+  local elapsed="${4:-0}"
+  mkdir -p "$RAG_DIR"
+  local patterns_file="$RAG_DIR/patterns.md"
+
+  # WI에서 타입 추출 (feat, fix, etc.)
+  local wi_type
+  wi_type=$(echo "$wi_name" | grep -oE '(feat|fix|docs|test|chore|refactor|style|perf)' | head -1)
+  wi_type="${wi_type:-unknown}"
+
+  # 도메인 키워드 추출 (한글 + 영문)
+  local domain
+  domain=$(echo "$wi_name" | sed 's/WI-[0-9]*-[a-z]* //' | cut -c1-30)
+
+  # 패턴 1줄 기록
+  local timestamp
+  timestamp=$(date '+%m-%d %H:%M')
+  echo "- ${result} | ${wi_type} | ${domain} | ${elapsed}s | ${files:-none}" >> "$patterns_file"
+
+  # 최근 50건만 유지 (오래된 패턴 자동 정리)
+  if [[ -f "$patterns_file" ]] && [[ $(wc -l < "$patterns_file") -gt 50 ]]; then
+    tail -50 "$patterns_file" > "${patterns_file}.tmp" 2>/dev/null && mv "${patterns_file}.tmp" "$patterns_file" 2>/dev/null || true
+  fi
+}
+
 build_rag_context() {
-  # 워커에게 주입할 RAG 컨텍스트 조립 (토큰 예산 ~2K)
+  # 워커에게 주입할 RAG 컨텍스트 조립 (토큰 예산 ~3K)
+  # $1: WI 이름 (optional — 파일 힌트 생성용)
+  local wi_name="${1:-}"
   local parts=""
 
   # 1. Codebase map (최대 80줄)
@@ -484,7 +621,34 @@ $(tail -20 "$RAG_DIR/wi-history.md")
 "
   fi
 
-  # 3. Guardrails
+  # 3. WI별 관련 파일 힌트 (탐색 토큰 절약)
+  if [[ -n "$wi_name" ]]; then
+    local relevant
+    relevant=$(suggest_relevant_files "$wi_name")
+    if [[ -n "$relevant" ]]; then
+      parts+="[RELEVANT FILES — 이 파일들을 먼저 확인하세요. 불필요한 Glob/Grep 탐색을 줄이세요]
+$(echo "$relevant" | sed 's/^/- /')
+"
+    fi
+  fi
+
+  # 4. 학습된 패턴 (최근 실패 패턴 우선 — 같은 실수 방지)
+  if [[ -f "$RAG_DIR/patterns.md" ]]; then
+    local fail_patterns
+    fail_patterns=$(grep -E '^- (skipped|conflict|timeout)' "$RAG_DIR/patterns.md" 2>/dev/null | tail -10)
+    local success_patterns
+    success_patterns=$(grep -E '^- merged' "$RAG_DIR/patterns.md" 2>/dev/null | tail -5)
+    if [[ -n "$fail_patterns" || -n "$success_patterns" ]]; then
+      parts+="[PATTERNS — 이전 워커 결과. 실패 패턴을 반복하지 마세요]
+${fail_patterns:+실패:
+$fail_patterns
+}${success_patterns:+성공:
+$success_patterns
+}"
+    fi
+  fi
+
+  # 5. Guardrails
   if [[ -f ".ralph/guardrails.md" ]]; then
     parts+="[GUARDRAILS — 반드시 준수]
 $(cat .ralph/guardrails.md)
@@ -534,7 +698,10 @@ setup_worktree() {
 
   # Clean stale worktree
   if [[ -d "$worktree_path" ]]; then
-    git worktree remove "$worktree_path" --force 2>/dev/null || rm -rf "$worktree_path"
+    git worktree remove "$worktree_path" --force 2>/dev/null || {
+      log "WARN: worktree 제거 실패 — $worktree_path (수동 정리 필요)"
+      return 1
+    }
   fi
   git branch -D "$branch_name" 2>/dev/null || true
 
@@ -610,6 +777,11 @@ execute_parallel() {
   local -a worktree_info=()
   local -a worktree_wi=()   # worktree_info와 1:1 매핑되는 WI 이름
 
+  # PR auto-merge 완료 반영 (이전 iteration PR이 머지됐을 수 있음)
+  git pull --rebase origin main 2>/dev/null || {
+    log "⚠️ main 동기화 실패 — git status 확인 필요"
+  }
+
   # 워커 실행 전 stale WI 사전 복구
   recover_stale_wis
 
@@ -623,10 +795,6 @@ execute_parallel() {
   fi
 
   log "🔀 병렬 실행: ${wi_count}개 WI 동시 처리"
-
-  # RAG 컨텍스트 조립 (워커 공통)
-  local rag_context
-  rag_context=$(build_rag_context)
 
   # Setup worktrees and launch claude in each
   for i in "${!wis[@]}"; do
@@ -653,6 +821,10 @@ execute_parallel() {
 [PARALLEL MODE] 이미 작업 브랜치에 있음. 별도 브랜치 생성·PR 생성 불필요. 현재 브랜치에서 직접 커밋할 것. fix_plan.md는 절대 수정하지 말 것(외부 루프가 처리).
 _RALPH_CTX_END_
 )
+    # RAG 컨텍스트 조립 (워커별 — WI에 맞는 파일 힌트 포함)
+    local rag_context
+    rag_context=$(build_rag_context "$wi")
+
     context="[Ralph Loop #$loop_count - Worker $idx/$wi_count] Completed: $completed | Remaining: $unchecked
 [TARGET] ${wi}
 [RULE] 위 TARGET 작업 1개만 처리하고 RALPH_STATUS 출력 후 즉시 종료. 다른 WI 절대 금지.
@@ -664,12 +836,18 @@ ${rag_context}"
     local logfile="${SCRIPT_DIR}/${LOG_DIR}/claude_parallel_${loop_count}_${idx}.log"
 
     # Launch in worktree (background)
+    local max_turns_args=()
+    if [[ "$MAX_TURNS" -gt 0 ]]; then
+      max_turns_args=(--max-turns "$MAX_TURNS")
+    fi
+
     (
       cd "$wt_path" || exit 1
       env -u CLAUDECODE claude -p "$prompt_content" \
         --output-format json \
         --append-system-prompt "$context" \
         --allowedTools "$ALLOWED_TOOLS" \
+        "${max_turns_args[@]}" \
         > "$logfile" 2>&1
     ) &
     pids+=($!)
@@ -711,32 +889,99 @@ ${rag_context}"
     wt_sha=$(git -C "$wt_path" rev-parse HEAD 2>/dev/null || echo "none")
     base_sha=$(git merge-base HEAD "$branch" 2>/dev/null || echo "none")
 
+    # 워커 로그에서 RALPH_STATUS 존재 확인 (--max-turns 도달 시 미출력)
+    local worker_log="${SCRIPT_DIR}/${LOG_DIR}/claude_parallel_${loop_count}_${idx}.log"
+    local has_status=false
+    if grep -q 'RALPH_STATUS\|STATUS:' "$worker_log" 2>/dev/null; then
+      has_status=true
+    fi
+
+    # 워커 변경 파일 목록 (패턴 기록용)
+    local changed_files=""
+    if [[ "$wt_sha" != "$base_sha" ]]; then
+      changed_files=$(git diff-tree --no-commit-id --name-only -r "$wt_sha" 2>/dev/null | head -5 | tr '\n' ', ')
+      changed_files="${changed_files%,}"
+    fi
+
     if [[ "$wt_sha" == "$base_sha" ]]; then
-      # 워커가 "이미 구현됨"으로 완료 보고했으면 fix_plan 체크
-      local worker_log="${SCRIPT_DIR}/${LOG_DIR}/claude_parallel_${loop_count}_${idx}.log"
-      if grep -q 'TASKS_COMPLETED_THIS_LOOP: 1' "$worker_log" 2>/dev/null; then
+      # 코드 변경 없음
+      if [[ "$has_status" == true ]] && grep -q 'TASKS_COMPLETED_THIS_LOOP: 1' "$worker_log" 2>/dev/null; then
         mark_wi_done "${worktree_wi[$i]}" || true
         log "  [Worker $idx] 이미 구현됨 — fix_plan 자동 체크"
+      elif [[ "$has_status" == false ]]; then
+        log "  [Worker $idx] ⚠️ 턴 제한 도달 (RALPH_STATUS 없음) — 스킵"
+        record_pattern "${worktree_wi[$i]}" "timeout" "" "$elapsed" || true
       else
         log "  [Worker $idx] 변경 없음 — 스킵"
+        record_pattern "${worktree_wi[$i]}" "skipped" "" "$elapsed" || true
       fi
       skipped=$((skipped + 1))
+    elif [[ "$has_status" == false ]]; then
+      # 코드 변경은 있지만 RALPH_STATUS 없음 → 불완전 가능성
+      log "  [Worker $idx] ⚠️ 턴 제한 도달 (불완전 코드) — 머지 건너뜀"
+      record_pattern "${worktree_wi[$i]}" "timeout" "$changed_files" "$elapsed" || true
+      skipped=$((skipped + 1))
     else
-      log "  [Worker $idx] 머지: $branch"
-      if git merge "$branch" --no-edit 2>"$LOG_DIR/merge_${idx}.log"; then
-        merged=$((merged + 1))
-        mark_wi_done "${worktree_wi[$i]}" || true
-        log "  [Worker $idx] ✅ 머지 성공"
-      else
-        git merge --abort 2>/dev/null || true
+      # PR 플로우: worker 브랜치를 push → PR 생성 → auto-merge 설정
+      local wi="${worktree_wi[$i]}"
+      local wi_type
+      wi_type=$(echo "$wi" | grep -oE '(feat|fix|docs|test|chore|refactor|style|perf)' | head -1)
+      wi_type="${wi_type:-feat}"
+      local wi_num
+      wi_num=$(echo "$wi" | grep -oE 'WI-[0-9]+' | head -1)
+      local pr_branch="${wi_type}/${wi_num}-${wi_type}-$(echo "$wi" | sed "s/.*${wi_type} //" | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/--*/-/g' | sed 's/-$//' | cut -c1-40)"
+
+      log "  [Worker $idx] PR 생성: $pr_branch"
+
+      # worker 브랜치를 PR용 브랜치명으로 rename 후 push
+      git branch -m "$branch" "$pr_branch" 2>/dev/null || {
+        log "  [Worker $idx] ❌ 브랜치 rename 실패"
         failed=$((failed + 1))
-        log "  [Worker $idx] ❌ 머지 충돌 — 롤백"
-        log "  [Worker $idx] 원인: $(head -3 "$LOG_DIR/merge_${idx}.log" 2>/dev/null)"
+        record_pattern "$wi" "conflict" "$changed_files" "$elapsed" || true
+        continue
+      }
+
+      if git push -u origin "$pr_branch" 2>"$LOG_DIR/push_${idx}.log"; then
+        # PR 생성
+        local pr_url
+        pr_url=$(gh pr create \
+          --base main \
+          --head "$pr_branch" \
+          --title "$wi" \
+          --body "Ralph Loop 자동 생성 PR" \
+          2>"$LOG_DIR/pr_${idx}.log") || true
+
+        if [[ -n "$pr_url" ]]; then
+          merged=$((merged + 1))
+          mark_wi_done "${worktree_wi[$i]}" || true
+          log "  [Worker $idx] ✅ PR 생성: $pr_url"
+          record_pattern "$wi" "merged" "$changed_files" "$elapsed" || true
+
+          # auto-merge 설정 (CI 통과 시 자동 머지)
+          gh pr merge "$pr_url" --auto --squash 2>/dev/null || {
+            log "  [Worker $idx] ⚠️ auto-merge 설정 실패 (수동 머지 필요)"
+          }
+        else
+          failed=$((failed + 1))
+          log "  [Worker $idx] ❌ PR 생성 실패"
+          log "  [Worker $idx] 원인: $(head -3 "$LOG_DIR/pr_${idx}.log" 2>/dev/null)"
+          record_pattern "$wi" "conflict" "$changed_files" "$elapsed" || true
+        fi
+      else
+        failed=$((failed + 1))
+        log "  [Worker $idx] ❌ push 실패"
+        log "  [Worker $idx] 원인: $(head -3 "$LOG_DIR/push_${idx}.log" 2>/dev/null)"
+        record_pattern "$wi" "conflict" "$changed_files" "$elapsed" || true
       fi
+
+      # rename한 브랜치 로컬에서 삭제
+      git branch -D "$pr_branch" 2>/dev/null || true
     fi
 
     # Cleanup worktree & branch
-    git worktree remove "$wt_path" --force 2>/dev/null || rm -rf "$wt_path"
+    git worktree remove "$wt_path" --force 2>/dev/null || {
+      log "WARN: worktree 제거 실패 — $wt_path (수동 정리 필요)"
+    }
     git branch -D "$branch" 2>/dev/null || true
   done
 
@@ -746,10 +991,17 @@ ${rag_context}"
   log "🔀 병렬 결과: ${merged} 머지, ${failed} 충돌, ${skipped} 스킵"
   call_count=$((call_count + wi_count))
 
-  # fix_plan.md 변경사항 커밋 (머지 또는 자동 체크로 변경된 경우)
-  if ! git diff --quiet "$FIX_PLAN" 2>/dev/null; then
+  # fix_plan 변경 후 PR로 push (main 직접 push 금지)
+  if [[ $merged -gt 0 ]] && ! git diff --quiet "$FIX_PLAN" 2>/dev/null; then
+    local fp_branch="chore/WI-chore-fix-plan-update-$(date +%H%M%S)"
+    git checkout -b "$fp_branch" 2>/dev/null || true
     git add "$FIX_PLAN"
-    git commit -m "WI-chore fix_plan 업데이트 (병렬 ${merged}건 머지, ${skipped}건 스킵)" --no-verify 2>/dev/null || true
+    git commit -m "WI-chore fix_plan 업데이트 (병렬 ${merged}건 PR, ${skipped}건 스킵)" --no-verify 2>/dev/null || true
+    git push -u origin "$fp_branch" 2>/dev/null || true
+    gh pr create --base main --head "$fp_branch" --title "WI-chore fix_plan 업데이트" --body "Ralph Loop 자동 생성" 2>/dev/null || true
+    gh pr merge --auto --squash 2>/dev/null || true
+    git checkout main 2>/dev/null || true
+    git branch -D "$fp_branch" 2>/dev/null || true
   fi
 
   # 전부 실패면 에러
@@ -777,11 +1029,18 @@ execute_claude() {
     log "🆕 새 세션 시작"
   fi
 
+  # 워커 턴 제한 (토큰 과소비 방지)
+  local max_turns_args=()
+  if [[ "$MAX_TURNS" -gt 0 ]]; then
+    max_turns_args=(--max-turns "$MAX_TURNS")
+  fi
+
   # 백그라운드에서 claude -p 실행 (CLAUDECODE 변수를 명시적으로 제거)
   env -u CLAUDECODE claude -p "$prompt_content" \
     --output-format json \
     --append-system-prompt "$context" \
     --allowedTools "$ALLOWED_TOOLS" \
+    "${max_turns_args[@]}" \
     "${session_args[@]}" \
     > "$logfile" 2>&1 &
   local pid=$!
@@ -957,12 +1216,29 @@ main() {
       local context
       context=$(build_context)
 
+      local iter_start
+      iter_start=$(date +%s)
+
       local result=0
       execute_claude "$context" || result=$?
+
+      local iter_elapsed=$(( $(date +%s) - iter_start ))
 
       validate_post_iteration || {
         log "Post-validation failed - check guardrails.md"
       }
+
+      # 순차 모드 패턴 기록
+      local current_sha_now
+      current_sha_now=$(git rev-parse HEAD 2>/dev/null || echo "none")
+      if [[ "$current_sha_now" != "$last_git_sha" ]]; then
+        local seq_files
+        seq_files=$(git diff-tree --no-commit-id --name-only -r HEAD 2>/dev/null | head -5 | tr '\n' ', ')
+        record_pattern "$current_wi" "merged" "${seq_files%,}" "$iter_elapsed" || true
+      else
+        record_pattern "$current_wi" "skipped" "" "$iter_elapsed" || true
+      fi
+
       check_progress || break
       save_state "running"
 
