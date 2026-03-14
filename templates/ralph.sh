@@ -215,6 +215,8 @@ cleanup() {
   cleanup_worktrees 2>/dev/null || true
   if [[ $exit_code -eq 0 ]]; then
     reconcile_fix_plan 2>/dev/null || true
+    # reconcile 후 남은 uncommitted changes 정리 (다음 실행 시 preflight 에러 방지)
+    git checkout -- "$FIX_PLAN" 2>/dev/null || true
   else
     log "⚠️ 비정상 종료 (exit code: $exit_code)"
     save_state "crashed"
@@ -300,11 +302,19 @@ preflight() {
   fi
 
   # fix_plan에 실제 WI가 있는지 확인 (빈 상태 방지)
+  # completed_wis.txt 반영: fix_plan [ ] 중 로컬 완료 항목 제외
   local unchecked
-  unchecked=$(grep -c '^\- \[ \]' "$FIX_PLAN" 2>/dev/null || echo "0")
+  unchecked=$(get_all_unchecked_wis 2>/dev/null | wc -l)
   if [[ "$unchecked" == "0" ]]; then
-    echo "ERROR: fix_plan.md에 미완료 WI가 없습니다. /wi:start로 WI를 생성하세요."
-    errors=$((errors + 1))
+    local total_wis
+    total_wis=$(grep -c '^\- \[' "$FIX_PLAN" 2>/dev/null || echo "0")
+    if [[ "$total_wis" == "0" ]]; then
+      echo "ERROR: fix_plan.md에 WI가 없습니다. /wi:start로 WI를 생성하세요."
+      errors=$((errors + 1))
+    else
+      echo "✅ 모든 WI가 완료되었습니다."
+      return 0
+    fi
   fi
 
   # 병렬 모드: uncommitted changes 감지 (자동 커밋하지 않음 — v2.0.0)
