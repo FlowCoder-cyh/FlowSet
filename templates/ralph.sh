@@ -991,7 +991,7 @@ ${rag_context}"
 
     # 리밋 감지: 워커 로그에서 rate limit / overloaded 키워드 확인
     local is_rate_limited=false
-    if grep -qiE 'rate.limit|rate_limit|429|overloaded|too many requests|throttl' "$worker_log" 2>/dev/null; then
+    if grep -qiE 'rate.limit|rate_limit|"status":\s*429|overloaded|too many requests|throttl' "$worker_log" 2>/dev/null; then
       is_rate_limited=true
     fi
 
