@@ -1037,14 +1037,27 @@ ${rag_context}"
   # fix_plan 변경 후 PR로 push (main 직접 push 금지)
   if [[ $merged -gt 0 ]] && ! git diff --quiet "$FIX_PLAN" 2>/dev/null; then
     local fp_branch="chore/WI-chore-fix-plan-update-$(date +%H%M%S)"
-    git checkout -b "$fp_branch" 2>/dev/null || true
-    git add "$FIX_PLAN"
-    git commit -m "WI-chore fix_plan 업데이트 (병렬 ${merged}건 PR, ${skipped}건 스킵)" 2>/dev/null || true
-    git push -u origin "$fp_branch" 2>/dev/null || true
-    gh pr create --base main --head "$fp_branch" --title "WI-chore fix_plan 업데이트" --body "Ralph Loop 자동 생성" 2>/dev/null || true
-    gh pr merge --auto --squash 2>/dev/null || true
-    git checkout main 2>/dev/null || true
-    git branch -D "$fp_branch" 2>/dev/null || true
+    if git checkout -b "$fp_branch" 2>/dev/null; then
+      git add "$FIX_PLAN"
+      git commit -m "WI-chore fix_plan 업데이트 (병렬 ${merged}건 PR, ${skipped}건 스킵)" 2>/dev/null || true
+      if git push -u origin "$fp_branch" 2>/dev/null; then
+        local fp_pr_url
+        fp_pr_url=$(gh pr create --base main --head "$fp_branch" --title "WI-chore fix_plan 업데이트" --body "Ralph Loop 자동 생성" 2>/dev/null) || true
+        if [[ -n "${fp_pr_url:-}" ]]; then
+          gh pr merge "$fp_pr_url" --auto --squash 2>/dev/null || true
+        fi
+      else
+        log "⚠️ fix_plan PR push 실패"
+      fi
+      # 반드시 main으로 복귀
+      git checkout main 2>/dev/null || git checkout main --force 2>/dev/null || {
+        log "ERROR: main 복귀 실패 — git status 확인 필요"
+      }
+      git branch -D "$fp_branch" 2>/dev/null || true
+    else
+      log "⚠️ fix_plan PR 브랜치 생성 실패 — fix_plan 변경은 다음 iteration에서 재시도"
+      git checkout main 2>/dev/null || true
+    fi
   fi
 
   # 전부 실패면 에러
