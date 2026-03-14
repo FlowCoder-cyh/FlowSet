@@ -334,14 +334,27 @@ is_wi_completed_locally() {
 
 sync_completed_file() {
   # origin fix_plan에서 이미 [x]인 항목은 completed_wis.txt에서 제거
+  # origin에서 아직 [ ]인데 open PR이 없으면 제거 (PR 거부/닫힘 대응)
   [[ -f "$COMPLETED_FILE" ]] || return 0
   local temp_file="${COMPLETED_FILE}.tmp"
   while IFS= read -r prefix; do
     [[ -z "$prefix" ]] && continue
-    # origin/main의 fix_plan에서 이 WI가 아직 [ ]이면 유지
+    # origin/main의 fix_plan에서 이 WI가 아직 [ ]이면
     if git show origin/main:"$FIX_PLAN" 2>/dev/null | grep -qF -- "- [ ] ${prefix}"; then
-      echo "$prefix"
+      # 해당 WI의 open PR이 있는지 확인
+      local wi_num
+      wi_num=$(echo "$prefix" | grep -oE 'WI-[0-9]+' || true)
+      local has_open_pr
+      has_open_pr=$(gh pr list --search "$wi_num" --state open --json number --jq 'length' 2>/dev/null || echo "")
+      if [[ "${has_open_pr:-0}" -gt 0 ]]; then
+        # open PR 존재 → 유지
+        echo "$prefix"
+      else
+        # open PR 없음 또는 확인 실패 → 제거 (재실행 유도)
+        log "🔄 ${prefix}: open PR 없음 — completed_wis에서 제거 (재실행)"
+      fi
     fi
+    # origin에서 이미 [x]이면 → 출력 안 함 → 자동 제거
   done < "$COMPLETED_FILE" > "$temp_file"
   if [[ -s "$temp_file" ]]; then
     mv "$temp_file" "$COMPLETED_FILE"
@@ -360,10 +373,16 @@ get_current_wi() {
 
 count_tasks() {
   # 코드블록 내부의 체크박스는 제외 (```로 둘러싸인 영역 밖만 카운트)
-  local unchecked completed
-  unchecked=$(awk '/^```/{f=!f} !f && /^\- \[ \]/{c++} END{print c+0}' "$FIX_PLAN" 2>/dev/null)
-  completed=$(awk '/^```/{f=!f} !f && /^\- \[x\]/{c++} END{print c+0}' "$FIX_PLAN" 2>/dev/null)
-  echo "$completed $unchecked"
+  # completed_wis.txt 반영: 로컬 완료 항목도 completed로 취급
+  local fix_completed fix_unchecked locally_completed
+  fix_completed=$(awk '/^```/{f=!f} !f && /^\- \[x\]/{c++} END{print c+0}' "$FIX_PLAN" 2>/dev/null)
+  fix_unchecked=$(get_all_unchecked_wis | wc -l)
+  locally_completed=0
+  if [[ -f "$COMPLETED_FILE" ]]; then
+    locally_completed=$(wc -l < "$COMPLETED_FILE" 2>/dev/null || echo 0)
+  fi
+  local completed=$((fix_completed + locally_completed))
+  echo "$completed $fix_unchecked"
 }
 
 check_all_done() {
