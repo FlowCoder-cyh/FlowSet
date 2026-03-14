@@ -121,11 +121,10 @@ git pull origin main
 - 다음 WI 브랜치 생성 전 반드시 `git pull origin main`으로 최신 상태 동기화
 - 이전 PR이 아직 머지 대기 중이면 머지 완료까지 대기
 
-### 6. fix_plan.md 업데이트
-- 완료한 항목: `- [ ]` → `- [x]`
-- 커밋: `git add .ralph/fix_plan.md && git commit -m "WI-chore fix_plan 업데이트" && git push origin main`
-  - 주의: fix_plan 업데이트 등 시스템 커밋은 번호 없이 `WI-chore` 사용
-  - 주의: fix_plan 업데이트는 main에 직접 push 허용 (pre-push hook이 WI-chore 허용)
+### 6. fix_plan.md — 수정 금지
+- **fix_plan.md는 워커가 절대 수정하지 않음**
+- 완료 상태는 외부 루프(ralph.sh)가 루프 종료 시 일괄 동기화
+- `git add .ralph/fix_plan.md` 금지, `sed` 편집 금지
 
 ### 7. 상태 출력 후 즉시 종료
 ```
