@@ -41,21 +41,22 @@ jobs:
             const data = JSON.parse(fs.readFileSync('/dev/stdin', 'utf8'));
             const suites = data.suites || [];
             const failures = [];
-            function walk(suite) {
+            function walk(suite, parentTitle) {
+              const suiteTitle = parentTitle ? parentTitle + ' > ' + (suite.title || '') : (suite.title || '');
               for (const spec of (suite.specs || [])) {
                 for (const test of (spec.tests || [])) {
                   if (test.status === 'unexpected' || test.status === 'failed') {
                     failures.push({
-                      title: spec.title,
+                      title: suiteTitle + ' > ' + spec.title,
                       file: suite.file || '',
                       error: (test.results?.[0]?.error?.message || '').substring(0, 500)
                     });
                   }
                 }
               }
-              for (const child of (suite.suites || [])) { walk(child); }
+              for (const child of (suite.suites || [])) { walk(child, suiteTitle); }
             }
-            suites.forEach(walk);
+            suites.forEach(s => walk(s, ''));
             console.log(JSON.stringify(failures));
           " 2>/dev/null || echo "[]")
 

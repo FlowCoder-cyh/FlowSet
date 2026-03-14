@@ -792,8 +792,12 @@ inject_regression_wis() {
   [[ -z "${issues:-}" || "$issues" == "[]" ]] && return 0
 
   local injected=0
-  echo "$issues" | sed -n 's/.*"title"\s*:\s*"\([^"]*\)".*/\1/p' | while IFS= read -r title; do
-    # 이슈 제목에서 WI 번호 추출 (예: "WI-063 smoke 실패")
+  local titles
+  titles=$(echo "$issues" | sed -n 's/.*"title"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+
+  while IFS= read -r title; do
+    [[ -z "$title" ]] && continue
+    # 이슈 제목에서 WI 번호 추출 (예: "WI-063 e2e 실패: ...")
     local wi_num
     wi_num=$(echo "$title" | grep -oE 'WI-[0-9]+' | head -1)
     [[ -z "$wi_num" ]] && continue
@@ -801,8 +805,8 @@ inject_regression_wis() {
     # 기존 서브넘버 확인 → 다음 번호 결정
     local max_sub=0
     local existing
-    existing=$(grep -oE "${wi_num}-[0-9]+-fix" "$FIX_PLAN" 2>/dev/null | grep -oE '[0-9]+' | tail -1)
-    if [[ -n "$existing" ]]; then
+    existing=$(grep -oE "${wi_num}-[0-9]+-fix" "$FIX_PLAN" 2>/dev/null | grep -oE '[0-9]+' | tail -1 || true)
+    if [[ -n "${existing:-}" ]]; then
       max_sub=$existing
     fi
     local next_sub=$((max_sub + 1))
@@ -813,12 +817,12 @@ inject_regression_wis() {
 
     # 원본 WI 바로 아래에 추가
     local orig_line
-    orig_line=$(grep -nE "^\- \[[x ]\] ${wi_num}-(feat|fix|docs|test|chore)" "$FIX_PLAN" 2>/dev/null | tail -1 | cut -d: -f1)
-    if [[ -n "$orig_line" ]]; then
+    orig_line=$(grep -nE "^\- \[[x ]\] ${wi_num}-(feat|fix|docs|test|chore)" "$FIX_PLAN" 2>/dev/null | tail -1 | cut -d: -f1 || true)
+    if [[ -n "${orig_line:-}" ]]; then
       sed -i "${orig_line}a\\- [ ] ${fix_wi} ${title}" "$FIX_PLAN"
       injected=$((injected + 1))
     fi
-  done
+  done <<< "$titles"
 
   if [[ $injected -gt 0 ]]; then
     log "🔄 regression issue에서 ${injected}건 fix WI 추가"
