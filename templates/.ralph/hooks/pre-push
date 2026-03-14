@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
-# pre-push hook: main 직접 push 방지 (허용 예외 있음)
+# pre-push hook: main/master 브랜치로의 직접 push 방지 (허용 예외 있음)
 # .git/hooks/pre-push 에 설치됨
+# push 대상 ref를 stdin에서 확인 — HEAD가 main이어도 다른 브랜치 push는 허용
 
 set -euo pipefail
 
-BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+# push 대상 ref를 stdin에서 읽어서 main으로의 push인지 확인
+# 형식: <local ref> <local sha> <remote ref> <remote sha>
+PUSHING_TO_MAIN=false
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [[ "$remote_ref" == "refs/heads/main" || "$remote_ref" == "refs/heads/master" ]]; then
+    PUSHING_TO_MAIN=true
+    break
+  fi
+done
 
-if [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
+if [[ "$PUSHING_TO_MAIN" == true ]]; then
   # 예외 허용: 초기 셋업, PRD 생성, fix_plan 업데이트
   LATEST_MSG=$(git log -1 --pretty=format:"%s" 2>/dev/null || echo "")
   if [[ "$LATEST_MSG" =~ ^WI-(chore|[0-9]{3,4}-chore)\ (프로젝트\ 초기|PRD\ 기반|fix_plan|WI-NNN) ]]; then
