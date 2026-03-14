@@ -49,15 +49,22 @@ git pull origin main
 git checkout -b feature/WI-001-feat-{작업명-kebab}
 ```
 
-### 3. 구현
-- 선택한 WI 항목을 완전히 구현
+### 3. TDD 구현 (RED → GREEN → 커밋)
+**반드시 테스트를 먼저 작성하고, 그 다음 구현합니다.**
+
+1. **RED**: 구현할 기능의 테스트를 먼저 작성 → `npm test` 실행 → 실패 확인
+2. **GREEN**: 테스트를 통과하는 최소한의 코드 구현
+3. **검증**: `npm run lint && npm run build && npm test` 전체 통과 확인
+4. 통과하면 커밋
+
 - 구현 전 반드시 기존 코드를 읽고 파악할 것
 - .gitignore에 포함된 파일은 절대 커밋하지 않음
+- fix_plan.md는 절대 수정하지 않음
 
 ### 4. 검증
 ```bash
 # AGENT.md에 정의된 명령 순서대로 실행
-# lint → build → test
+# lint → build → test (전체 suite)
 ```
 - 실패 시 에러 유형에 따라 전략 분기:
   - **명확한 에러** (빌드/타입/린트 — 에러 메시지로 원인 특정 가능):

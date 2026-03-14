@@ -772,7 +772,57 @@ $(cat .ralph/guardrails.md)
 "
   fi
 
+  # 6. Regression issues (open: 전체 body, 재발 방지)
+  local regression_issues
+  regression_issues=$(gh issue list --label regression --state open --json number,title,body --jq '.[] | "### #\(.number): \(.title)\n\(.body)\n"' 2>/dev/null || true)
+  if [[ -n "${regression_issues:-}" ]]; then
+    parts+="[KNOWN ISSUES — 이전 CI/e2e 실패. 같은 실수 반복 금지]
+
+${regression_issues}
+"
+  fi
+
   echo "$parts"
+}
+
+inject_regression_wis() {
+  # open regression issue → fix_plan에 WI-NNN-1-fix 추가 (원본 WI 바로 아래)
+  local issues
+  issues=$(gh issue list --label regression --state open --json number,title,body 2>/dev/null || true)
+  [[ -z "${issues:-}" || "$issues" == "[]" ]] && return 0
+
+  local injected=0
+  echo "$issues" | sed -n 's/.*"title"\s*:\s*"\([^"]*\)".*/\1/p' | while IFS= read -r title; do
+    # 이슈 제목에서 WI 번호 추출 (예: "WI-063 smoke 실패")
+    local wi_num
+    wi_num=$(echo "$title" | grep -oE 'WI-[0-9]+' | head -1)
+    [[ -z "$wi_num" ]] && continue
+
+    # 기존 서브넘버 확인 → 다음 번호 결정
+    local max_sub=0
+    local existing
+    existing=$(grep -oE "${wi_num}-[0-9]+-fix" "$FIX_PLAN" 2>/dev/null | grep -oE '[0-9]+' | tail -1)
+    if [[ -n "$existing" ]]; then
+      max_sub=$existing
+    fi
+    local next_sub=$((max_sub + 1))
+    local fix_wi="${wi_num}-${next_sub}-fix"
+
+    # 이미 fix_plan에 있으면 스킵
+    grep -qF "$fix_wi" "$FIX_PLAN" 2>/dev/null && continue
+
+    # 원본 WI 바로 아래에 추가
+    local orig_line
+    orig_line=$(grep -nE "^\- \[[x ]\] ${wi_num}-(feat|fix|docs|test|chore)" "$FIX_PLAN" 2>/dev/null | tail -1 | cut -d: -f1)
+    if [[ -n "$orig_line" ]]; then
+      sed -i "${orig_line}a\\- [ ] ${fix_wi} ${title}" "$FIX_PLAN"
+      injected=$((injected + 1))
+    fi
+  done
+
+  if [[ $injected -gt 0 ]]; then
+    log "🔄 regression issue에서 ${injected}건 fix WI 추가"
+  fi
 }
 
 #==============================
@@ -1221,6 +1271,9 @@ main() {
 
   # git log에서 완료 WI 복구 (crash 후 completed_wis.txt 보충)
   recover_completed_from_history
+
+  # regression issue → fix_plan에 WI-NNN-1-fix 추가
+  inject_regression_wis
 
   # 병렬 모드: 이전 실행의 stale worktree/branch 정리
   if [[ $PARALLEL_COUNT -gt 1 ]]; then

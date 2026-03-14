@@ -148,6 +148,36 @@ docs/L3-feature/{name}.md  ← 각 소분류별 문서
 docs/L4-task/               ← fix_plan.md가 마스터, 개별 문서는 필요 시만
 ```
 
+### Phase 5.5: Smoke 테스트 생성
+
+PRD의 L1 도메인별 smoke 테스트를 자동 생성합니다.
+
+**절차:**
+1. fix_plan.md에서 L1 도메인 목록 추출
+2. 도메인별 웹리서치: `"{PROJECT_TYPE} {L1 domain} smoke test best practice {year}"`
+3. PRD + 리서치 결과 기반 smoke 테스트 설계
+4. 사용자 확인: "이 smoke 테스트로 진행할까요?" (Y/N)
+5. Playwright 기반 smoke 테스트 코드 생성
+
+**규칙:**
+- 각 테스트의 `describe` 블록에 WI 번호 포함: `describe('WI-063: 휴가 신청 폼', () => {...})`
+- e2e 실패 시 WI 번호 추출에 사용됨 (GitHub Actions e2e.yml 연동)
+- 도메인별 핵심 경로만 (페이지 접근 → 주요 요소 렌더링 확인)
+- 전체 도메인 커버 (누락 시 404/렌더링 깨짐 미감지)
+
+**생성 위치:**
+```
+tests/
+  smoke/
+    auth.spec.ts          ← 로그인 → 세션 유지
+    people.spec.ts        ← 직원 목록 → 상세
+    attendance.spec.ts    ← 대시보드 → 출결 기록
+    leave.spec.ts         ← 대시보드 → 휴가 신청
+    ...
+  e2e/
+    (추후 워커가 구현 시 자동 추가)
+```
+
 ### Phase 6: 커밋 & Ralph Loop 시작 안내
 
 ```bash
