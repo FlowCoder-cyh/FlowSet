@@ -716,11 +716,14 @@ setup_worktree() {
   local branch_name="parallel/worker-${idx}-${sanitized}"
   local worktree_path="${WORKTREE_DIR}/worker-${idx}"
 
-  # Clean stale worktree
+  # Clean stale worktree (git 등록 해제 + 디렉토리 삭제)
   if [[ -d "$worktree_path" ]]; then
     git worktree remove "$worktree_path" --force 2>/dev/null || {
-      log "WARN: worktree 제거 실패 — $worktree_path (수동 정리 필요)"
-      return 1
+      # git 등록은 해제됐지만 빈 디렉토리만 남은 경우
+      rmdir "$worktree_path" 2>/dev/null || {
+        log "WARN: worktree 디렉토리 제거 실패 — $worktree_path (수동 정리 필요)"
+        return 1
+      }
     }
   fi
   git branch -D "$branch_name" 2>/dev/null || true
