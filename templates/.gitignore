@@ -38,6 +38,7 @@ desktop.ini
 # Ralph Loop logs (local only)
 .ralph/logs/
 .ralph/.claude_session_id
+.ralph/completed_wis.txt
 
 # Parallel worktree (ralph.sh 자동 생성/정리)
 .worktrees/

@@ -66,6 +66,10 @@ total_cost_usd=0
 # 상태 파일 (비정상 종료 복구용)
 STATE_FILE=".ralph/loop_state.json"
 
+# 완료 WI 로컬 추적 (untracked — reset --hard에서 보존됨)
+# fix_plan PR 머지 전에도 다음 iteration에서 같은 WI 재실행 방지
+COMPLETED_FILE=".ralph/completed_wis.txt"
+
 save_state() {
   cat > "$STATE_FILE" <<EOF
 {
@@ -321,9 +325,37 @@ validate_post_iteration() {
   return 0
 }
 
+is_wi_completed_locally() {
+  # completed_wis.txt에 해당 WI prefix가 있는지 확인
+  local wi_line="$1"
+  local wi_prefix="${wi_line%% *}"
+  [[ -f "$COMPLETED_FILE" ]] && grep -qF "$wi_prefix" "$COMPLETED_FILE" 2>/dev/null
+}
+
+sync_completed_file() {
+  # origin fix_plan에서 이미 [x]인 항목은 completed_wis.txt에서 제거
+  [[ -f "$COMPLETED_FILE" ]] || return 0
+  local temp_file="${COMPLETED_FILE}.tmp"
+  while IFS= read -r prefix; do
+    [[ -z "$prefix" ]] && continue
+    # origin/main의 fix_plan에서 이 WI가 아직 [ ]이면 유지
+    if git show origin/main:"$FIX_PLAN" 2>/dev/null | grep -qF "- [ ] ${prefix}"; then
+      echo "$prefix"
+    fi
+  done < "$COMPLETED_FILE" > "$temp_file"
+  if [[ -s "$temp_file" ]]; then
+    mv "$temp_file" "$COMPLETED_FILE"
+  else
+    rm -f "$temp_file" "$COMPLETED_FILE"
+  fi
+}
+
 get_current_wi() {
-  # fix_plan.md에서 첫 번째 미완료 WI 이름 추출
-  awk '/^```/{f=!f} !f && /^\- \[ \]/{sub(/^\- \[ \] /,""); sub(/ \| L1:.*$/,""); print; exit}' "$FIX_PLAN" 2>/dev/null
+  # fix_plan.md에서 첫 번째 미완료 WI 이름 추출 (로컬 완료 목록 필터)
+  while IFS= read -r wi; do
+    [[ -z "$wi" ]] && continue
+    is_wi_completed_locally "$wi" || { echo "$wi"; return; }
+  done < <(awk '/^```/{f=!f} !f && /^\- \[ \]/{sub(/^\- \[ \] /,""); sub(/ \| L1:.*$/,""); print}' "$FIX_PLAN" 2>/dev/null)
 }
 
 count_tasks() {
@@ -474,8 +506,11 @@ update_wi_history() {
 }
 
 get_all_unchecked_wis() {
-  # batch 무관하게 전체 미완료 WI 추출
-  awk '/^```/{f=!f} !f && /^\- \[ \]/{sub(/^\- \[ \] /,""); sub(/ \| L1:.*$/,""); print}' "$FIX_PLAN" 2>/dev/null
+  # batch 무관하게 전체 미완료 WI 추출 (로컬 완료 목록 필터)
+  while IFS= read -r wi; do
+    [[ -z "$wi" ]] && continue
+    is_wi_completed_locally "$wi" || echo "$wi"
+  done < <(awk '/^```/{f=!f} !f && /^\- \[ \]/{sub(/^\- \[ \] /,""); sub(/ \| L1:.*$/,""); print}' "$FIX_PLAN" 2>/dev/null)
 }
 
 check_wi_implemented() {
@@ -682,30 +717,37 @@ $(cat .ralph/guardrails.md)
 
 get_next_n_wis() {
   local n=${1:-1}
+  local count=0
 
-  # 첫 번째 미완료 WI의 batch 태그 확인
-  local first_batch
-  first_batch=$(awk '/^```/{f=!f} !f && /^\- \[ \]/{
-    if (match($0, /batch:[A-Za-z0-9]+/)) print substr($0, RSTART+6, RLENGTH-6)
-    exit
-  }' "$FIX_PLAN" 2>/dev/null)
+  # 첫 번째 미완료 WI의 batch 태그 확인 (로컬 완료 필터 적용)
+  local first_batch=""
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    local wi_name
+    wi_name=$(echo "$line" | sed 's/^\- \[ \] //; s/ | L1:.*$//')
+    if is_wi_completed_locally "$wi_name"; then
+      continue
+    fi
+    first_batch=$(echo "$line" | grep -oE 'batch:[A-Za-z0-9]+' | sed 's/batch://' || true)
+    break
+  done < <(awk '/^```/{f=!f} !f && /^\- \[ \]/{print}' "$FIX_PLAN" 2>/dev/null)
 
-  if [[ -z "$first_batch" ]]; then
-    # batch 태그 없음 — 순서대로 N개 추출 (기존 동작)
-    awk -v n="$n" '/^```/{f=!f} !f && /^\- \[ \]/{sub(/^\- \[ \] /,""); sub(/ \| L1:.*$/,""); print; c++; if(c>=n) exit}' "$FIX_PLAN" 2>/dev/null
-  else
-    # 같은 batch 내 미완료 WI만 N개 추출
-    awk -v n="$n" -v batch="batch:$first_batch" '
-      /^```/{f=!f}
-      !f && /^\- \[ \]/ && index($0, batch) {
-        sub(/^\- \[ \] /,"")
-        sub(/ \| L1:.*$/,"")
-        print
-        c++
-        if(c>=n) exit
-      }
-    ' "$FIX_PLAN" 2>/dev/null
-  fi
+  # 미완료 WI 추출 (로컬 완료 필터 + batch 필터)
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    local wi_name
+    wi_name=$(echo "$line" | sed 's/^\- \[ \] //; s/ | L1:.*$//')
+    is_wi_completed_locally "$wi_name" && continue
+
+    # batch 필터
+    if [[ -n "$first_batch" ]]; then
+      echo "$line" | grep -q "batch:$first_batch" || continue
+    fi
+
+    echo "$wi_name"
+    count=$((count + 1))
+    [[ $count -ge $n ]] && break
+  done < <(awk '/^```/{f=!f} !f && /^\- \[ \]/{print}' "$FIX_PLAN" 2>/dev/null)
 }
 
 setup_worktree() {
@@ -750,6 +792,9 @@ mark_wi_done() {
   line_num=$(grep -nF -- "- [ ] ${wi_name}" "$FIX_PLAN" 2>/dev/null | head -1 | cut -d: -f1)
   if [[ -n "$line_num" ]]; then
     sed -i "${line_num}s/^\- \[ \]/- [x]/" "$FIX_PLAN"
+    # 로컬 완료 추적 (reset --hard에서 보존됨)
+    local wi_prefix="${wi_name%% *}"
+    echo "$wi_prefix" >> "$COMPLETED_FILE"
     log "  mark_wi_done: ✅ ${wi_name} (line $line_num)"
     update_wi_history "$wi_name" || true
   else
@@ -805,6 +850,9 @@ execute_parallel() {
     git reset --hard origin/main 2>/dev/null || true
     log "⚠️ main 동기화 충돌 — origin/main으로 리셋"
   }
+
+  # 로컬 완료 목록 정리 (origin fix_plan에서 이미 [x]인 항목 제거)
+  sync_completed_file
 
   # 워커 실행 전 stale WI 사전 복구
   recover_stale_wis
