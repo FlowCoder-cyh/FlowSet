@@ -123,6 +123,7 @@ PRD의 L4 태스크를 WI 체크리스트로 변환:
   - **L1:Shared** → 항상 단독 batch (공통 컴포넌트는 다른 WI와 병렬 불가)
   - **DB 스키마 (prisma/schema 등)** → 항상 단독 batch (공유 파일)
   - **패키지 설치 (package.json 변경)** → 항상 단독 batch
+  - **공유 UI 파일 수정 (page.tsx, layout.tsx, globals.css 등)** → 같은 batch 또는 단독 batch (충돌 방지)
 - 예시:
   ```markdown
   - [ ] WI-018-feat 근태 마감 | L1:Attendance > L2:마감 | batch:A
