@@ -191,6 +191,54 @@ recover_completed_from_history() {
   fi
 }
 
+cleanup_stale_completed() {
+  # completed_wis.txt에 있지만 origin/main에 커밋도 없고 open PR도 없는 항목 제거
+  # (PR 충돌로 close된 WI를 재실행하기 위함)
+  [[ -f "$COMPLETED_FILE" ]] || return 0
+  local removed=0
+  local temp_file="${COMPLETED_FILE}.cleanup"
+  local owner repo
+  owner=$(gh repo view --json owner --jq '.owner.login' 2>/dev/null || true)
+  repo=$(gh repo view --json name --jq '.name' 2>/dev/null || true)
+  [[ -z "${owner:-}" || -z "${repo:-}" ]] && return 0
+
+  while IFS= read -r prefix; do
+    [[ -z "$prefix" ]] && continue
+    # origin/main에 이미 [x]이면 유지 (머지 완료)
+    if git show origin/main:"$FIX_PLAN" 2>/dev/null | grep -qF -- "- [x] ${prefix}"; then
+      echo "$prefix"
+      continue
+    fi
+    # origin/main에 [ ]이면 → PR 상태 확인
+    if git show origin/main:"$FIX_PLAN" 2>/dev/null | grep -qF -- "- [ ] ${prefix}"; then
+      # open PR 있으면 유지
+      local has_open_pr
+      has_open_pr=$(gh api graphql -f query="{ search(query: \"repo:${owner}/${repo} is:pr is:open ${prefix}\", type: ISSUE, first: 1) { issueCount } }" --jq '.data.search.issueCount' 2>/dev/null || echo "")
+      if [[ "${has_open_pr:-}" == "0" ]]; then
+        # git log에 커밋 있으면 유지
+        if git log --oneline main 2>/dev/null | grep -q "^[a-f0-9]* ${prefix}"; then
+          echo "$prefix"
+        else
+          removed=$((removed + 1))
+          log "🧹 ${prefix}: 커밋 없음 + open PR 없음 → completed_wis에서 제거 (재실행)"
+        fi
+      elif [[ -z "${has_open_pr:-}" ]]; then
+        # gh api 실패 → 유지 (모르면 유지)
+        echo "$prefix"
+      else
+        echo "$prefix"
+      fi
+    else
+      # fix_plan에 없는 항목 → 유지 (다른 이유로 들어왔을 수 있음)
+      echo "$prefix"
+    fi
+  done < "$COMPLETED_FILE" > "$temp_file"
+  mv "$temp_file" "$COMPLETED_FILE"
+  if [[ $removed -gt 0 ]]; then
+    log "🧹 stale completed ${removed}건 제거"
+  fi
+}
+
 #==============================
 # Section 3: CLEANUP & TRAPS
 #==============================
@@ -1291,6 +1339,9 @@ main() {
 
   # git log에서 완료 WI 복구 (crash 후 completed_wis.txt 보충)
   recover_completed_from_history
+
+  # stale completed 정리 (PR 충돌로 close된 WI 재실행)
+  cleanup_stale_completed
 
   # regression issue → fix_plan에 WI-NNN-1-fix 추가
   inject_regression_wis
