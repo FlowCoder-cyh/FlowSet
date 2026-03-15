@@ -179,6 +179,102 @@ tests/
     (추후 워커가 구현 시 자동 추가)
 ```
 
+### Phase 5.9: Ruleset 설정 (루프 시작 전 보호 활성화)
+
+`.ralphrc`에서 `GITHUB_ACCOUNT_TYPE`과 `GITHUB_ORG`를 읽어 ruleset을 설정합니다.
+
+```bash
+# .ralphrc에서 계정 유형 읽기
+source .ralphrc
+
+REPO_FULL="${GITHUB_ORG}/${PROJECT_NAME}"
+
+# 브랜치 보호 규칙 (main) — 계정 유형별 자동 분기
+ruleset_ok=false
+
+# 1. Rulesets API 시도 (조직 계정)
+if [[ "${GITHUB_ACCOUNT_TYPE:-}" == "org" ]]; then
+  gh api --method POST "repos/${REPO_FULL}/rulesets" --input - <<'RULES' 2>/dev/null && ruleset_ok=true
+{
+  "name": "Protect main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["refs/heads/main"],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "required_status_checks": [
+          { "context": "lint" },
+          { "context": "build" },
+          { "context": "test" },
+          { "context": "check-commits" }
+        ]
+      }
+    },
+    {
+      "type": "merge_queue",
+      "parameters": {
+        "check_response_timeout_minutes": 10,
+        "grouping_strategy": "ALLGREEN",
+        "max_entries_to_build": 5,
+        "max_entries_to_merge": 5,
+        "merge_method": "SQUASH",
+        "min_entries_to_merge": 1,
+        "min_entries_to_merge_wait_minutes": 1
+      }
+    },
+    { "type": "non_fast_forward" },
+    { "type": "deletion" }
+  ]
+}
+RULES
+fi
+
+# 2. 개인 계정 또는 Rulesets 실패 시 → strict: false
+if [[ "$ruleset_ok" != "true" ]]; then
+  gh api --method POST "repos/${REPO_FULL}/rulesets" --input - <<'RULES' 2>/dev/null || {
+    echo "⚠️ Ruleset 설정 실패 — 로컬 Git hooks로만 보호합니다."
+  }
+{
+  "name": "Protect main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["refs/heads/main"],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "required_status_checks": [
+          { "context": "lint" },
+          { "context": "build" },
+          { "context": "test" },
+          { "context": "check-commits" }
+        ]
+      }
+    },
+    { "type": "non_fast_forward" },
+    { "type": "deletion" }
+  ]
+}
+RULES
+fi
+
+echo "🔒 Ruleset 설정 완료"
+```
+
 ### Phase 6: 커밋 & Ralph Loop 시작 안내
 
 ```bash

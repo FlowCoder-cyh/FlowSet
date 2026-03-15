@@ -143,8 +143,15 @@ Ralph Loop은 PR 기반 자동 머지를 사용합니다.
 ```
 
 사용자 선택에 따라:
-- **조직**: `gh repo create {org}/{project-name}` + merge queue ruleset 적용
-- **개인**: `gh repo create {user}/{project-name}` + `strict: false` 설정
+- **조직**: `gh repo create {org}/{project-name}` + (ruleset은 `/wi:start`에서 설정)
+- **개인**: `gh repo create {user}/{project-name}` + (ruleset은 `/wi:start`에서 설정)
+
+**사용자 선택을 `.ralphrc`에 기록:**
+```bash
+# .ralphrc에 계정 유형 저장 (wi:start에서 ruleset 설정 시 참조)
+GITHUB_ACCOUNT_TYPE="org"  # 또는 "personal"
+GITHUB_ORG="{org}"         # 조직명 또는 사용자명
+```
 
 ### Step 5: GitHub 레포 생성 & 설정
 ```bash
@@ -152,91 +159,18 @@ Ralph Loop은 PR 기반 자동 머지를 사용합니다.
 gh repo create {org}/{project-name} --private --source=. --remote=origin
 # 또는 --public (--private 플래그 여부에 따라)
 
-# 초기 커밋 & 푸시
+# 초기 커밋 & 푸시 (ruleset 없이 — 자유롭게 push 가능)
 git add -A
 git commit -m "WI-chore 프로젝트 초기 환경 셋업"
 git push -u origin main
 
 # 머지 시 브랜치 자동 삭제 활성화
 gh api -X PATCH "repos/{org}/{project-name}" -f delete_branch_on_merge=true
+gh api -X PATCH "repos/{org}/{project-name}" -f allow_auto_merge=true
 
-# 브랜치 보호 규칙 (main) — 플랜별 자동 분기
-#
-# 1. Rulesets API 시도 (Pro/Team/Enterprise)
-# 2. 실패 시 Branch Protection API fallback (Free public)
-# 3. 둘 다 실패 시 로컬 hooks만으로 보호 (Free private)
-
-# 먼저 Rulesets API 시도
-ruleset_ok=false
-gh api --method POST "repos/{org}/{project-name}/rulesets" --input - <<'RULES' 2>/dev/null && ruleset_ok=true
-{
-  "name": "Protect main",
-  "target": "branch",
-  "enforcement": "active",
-  "conditions": {
-    "ref_name": {
-      "include": ["refs/heads/main"],
-      "exclude": []
-    }
-  },
-  "rules": [
-    {
-      "type": "pull_request",
-      "parameters": {
-        "dismiss_stale_reviews_on_push": true,
-        "require_last_push_approval": false,
-        "required_approving_review_count": 0,
-        "required_review_thread_resolution": false
-      }
-    },
-    {
-      "type": "required_status_checks",
-      "parameters": {
-        "strict_required_status_checks_policy": true,
-        "required_status_checks": [
-          { "context": "lint" },
-          { "context": "build" },
-          { "context": "test" },
-          { "context": "check-commits" }
-        ]
-      }
-    },
-    {
-      "type": "merge_queue",
-      "parameters": {
-        "check_response_timeout_minutes": 10,
-        "grouping_strategy": "ALLGREEN",
-        "max_entries_to_build": 5,
-        "max_entries_to_merge": 5,
-        "merge_method": "SQUASH",
-        "min_entries_to_merge": 1,
-        "min_entries_to_merge_wait_minutes": 1
-      }
-    },
-    { "type": "non_fast_forward" },
-    { "type": "deletion" }
-  ]
-}
-RULES
-
-# Rulesets 실패 시 → Branch Protection API (Free public repos)
-if [[ "$ruleset_ok" != "true" ]]; then
-  echo "Rulesets API 미지원 — Branch Protection API로 대체합니다."
-  gh api --method PUT "repos/{org}/{project-name}/branches/main/protection" \
-    --input - <<'PROTECT' 2>/dev/null || {
-    echo "Branch Protection API도 미지원 (Free private). 로컬 Git hooks로만 보호합니다."
-  }
-{
-  "required_status_checks": {
-    "strict": true,
-    "contexts": ["lint", "build", "test", "check-commits"]
-  },
-  "enforce_admins": false,
-  "required_pull_request_reviews": null,
-  "restrictions": null
-}
-PROTECT
-fi
+# ⚠️ ruleset/branch protection은 여기서 설정하지 않음
+# /wi:prd, /wi:env 단계에서 main에 직접 push가 필요하므로
+# /wi:start 실행 시 ruleset이 자동 적용됩니다
 ```
 
 ### Step 6: 완료 안내
