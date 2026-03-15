@@ -183,12 +183,50 @@ npm run build && echo "✅ 빌드 성공"
 vercel --prod=false && echo "✅ 프리뷰 배포 성공"
 ```
 
+### Phase 5.5: GitHub Secrets 등록
+
+CI/CD(GitHub Actions)에서 E2E 테스트, DB 연결 등이 동작하려면 `.env` 값을 GitHub Secrets에 등록해야 합니다.
+
+```bash
+# .env에서 값을 읽어 GitHub Secrets에 자동 등록
+while IFS='=' read -r key value; do
+  [[ -z "$key" || "$key" == \#* ]] && continue
+  echo "  등록: $key"
+  gh secret set "$key" --body "$value"
+done < .env
+
+echo "✅ GitHub Secrets 등록 완료"
+```
+
+**사용자에게 설명:**
+```
+🔐 GitHub Secrets 등록
+
+CI/CD에서 DB, 인증 등이 동작하려면 환경변수가 GitHub에도 필요합니다.
+.env 파일의 값을 GitHub Secrets에 자동 등록합니다.
+
+등록할까요? (Y/n)
+```
+
+**CI workflow 확인:**
+등록 후, ci.yml과 e2e.yml에서 secrets를 env로 사용하는지 확인합니다.
+워크플로우에 아래 패턴이 있어야 합니다:
+```yaml
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  DIRECT_URL: ${{ secrets.DIRECT_URL }}
+  NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+  NEXTAUTH_URL: http://localhost:3000
+```
+없으면 자동으로 추가합니다.
+
 **출력:**
 ```
-🔗 연결 테스트 결과:
+🔗 연결 테스트 + Secrets 등록 결과:
   ✅ 데이터베이스 — PostgreSQL 연결 성공
   ✅ 빌드 — Next.js 빌드 성공
   ✅ 배포 — Vercel 프리뷰 정상
+  ✅ GitHub Secrets — {N}개 등록됨
   ⏭️ 이메일 — Resend 키 미설정 (나중에 추가 가능)
 
 ✅ 환경 구성 완료! 이제 /wi:start 로 개발을 시작할 수 있습니다.
