@@ -117,6 +117,35 @@ cp .ralph/hooks/pre-push .git/hooks/pre-push
 chmod +x .git/hooks/pre-push
 ```
 
+### Step 4.5: GitHub 계정 유형 안내
+
+레포 생성 전, 사용자에게 계정 유형을 안내합니다:
+
+```
+📋 GitHub 계정 유형 선택
+
+Ralph Loop은 PR 기반 자동 머지를 사용합니다.
+계정 유형에 따라 머지 방식이 달라집니다:
+
+🏢 조직(Organization) 계정 — 권장
+  - Merge Queue 사용 가능 (자동 rebase + CI + 머지)
+  - PR 충돌 자동 해소, 병렬 실행 시 안정적
+  - 조직이 없으면: https://github.com/organizations/plan 에서 무료 생성
+
+👤 개인(Personal) 계정
+  - Merge Queue 미지원
+  - strict: false로 설정 (CI 통과 시 즉시 머지)
+  - 같은 파일을 수정하는 WI가 충돌할 수 있음 (batch 설계로 최소화)
+
+어떤 계정을 사용하시겠습니까?
+  1) 조직 계정 (권장)
+  2) 개인 계정
+```
+
+사용자 선택에 따라:
+- **조직**: `gh repo create {org}/{project-name}` + merge queue ruleset 적용
+- **개인**: `gh repo create {user}/{project-name}` + `strict: false` 설정
+
 ### Step 5: GitHub 레포 생성 & 설정
 ```bash
 # 레포 생성
