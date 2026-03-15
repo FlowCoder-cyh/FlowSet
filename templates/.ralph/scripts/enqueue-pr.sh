@@ -32,14 +32,15 @@ if echo "$RESULT" | grep -q '"position"'; then
 elif echo "$RESULT" | grep -q "status checks"; then
   # CI 미통과 → auto-merge 설정 (CI 통과 시 자동 큐 등록)
   echo "⏳ CI 대기 중 — auto-merge 설정"
-  gh pr merge "$PR_NUMBER" --auto --squash 2>/dev/null || gh pr merge "$PR_NUMBER" --auto 2>/dev/null || {
+  # merge queue 활성화 repo: --squash 금지 (queue가 method 관리)
+  gh pr merge "$PR_NUMBER" --auto 2>/dev/null || {
     echo "⚠️ auto-merge 설정 실패"
   }
-  echo "✅ PR #$PR_NUMBER → auto-merge 설정 완료"
+  echo "✅ PR #$PR_NUMBER → auto-merge 설정 완료 (CI 통과 후 큐 등록)"
 elif echo "$RESULT" | grep -q "already queued\|already in the merge queue"; then
   echo "✅ PR #$PR_NUMBER → 이미 큐에 등록됨"
 else
-  # merge queue 미지원 → fallback
+  # merge queue 미지원 → fallback (squash 가능)
   echo "⚠️ merge queue 미지원 — gh pr merge --auto --squash fallback"
   gh pr merge "$PR_NUMBER" --auto --squash 2>/dev/null || {
     echo "⚠️ auto-merge 설정 실패"
