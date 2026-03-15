@@ -239,6 +239,61 @@ cleanup_stale_completed() {
   fi
 }
 
+resolve_conflicting_prs() {
+  # CONFLICTING 상태의 open PR을 자동 rebase 시도
+  # 실패 시 close + completed_wis에서 제거 (다음 iteration에서 재실행)
+  local owner repo
+  owner=$(gh repo view --json owner --jq '.owner.login' 2>/dev/null || true)
+  repo=$(gh repo view --json name --jq '.name' 2>/dev/null || true)
+  [[ -z "${owner:-}" || -z "${repo:-}" ]] && return 0
+
+  local conflicting_prs
+  conflicting_prs=$(gh pr list --state open --json number,headRefName,title --jq '.[] | "\(.number)|\(.headRefName)|\(.title)"' 2>/dev/null || true)
+  [[ -z "${conflicting_prs:-}" ]] && return 0
+
+  while IFS='|' read -r pr_number branch title; do
+    [[ -z "$pr_number" ]] && continue
+
+    # mergeable 상태 확인
+    local mergeable
+    mergeable=$(gh pr view "$pr_number" --json mergeable --jq '.mergeable' 2>/dev/null || true)
+    [[ "$mergeable" != "CONFLICTING" ]] && continue
+
+    log "🔀 PR #${pr_number} 충돌 감지 — 자동 rebase 시도: ${title}"
+
+    # rebase 시도
+    git fetch origin "$branch" 2>/dev/null || continue
+    git checkout "origin/$branch" --detach 2>/dev/null || continue
+
+    if git rebase origin/main 2>/dev/null; then
+      # rebase 성공 → force push
+      if git push origin "HEAD:$branch" --force-with-lease 2>/dev/null; then
+        log "  ✅ rebase 성공 — re-enqueue"
+        git checkout main 2>/dev/null || true
+        bash .ralph/scripts/enqueue-pr.sh "$pr_number" 2>/dev/null || true
+      else
+        log "  ⚠️ push 실패 — 스킵"
+        git checkout main 2>/dev/null || true
+      fi
+    else
+      # rebase 실패 → close + completed_wis 제거
+      git rebase --abort 2>/dev/null || true
+      git checkout main 2>/dev/null || true
+
+      log "  ❌ rebase 실패 — PR close + 재실행 예약"
+      gh pr close "$pr_number" --comment "자동 rebase 실패 — 루프에서 재실행" 2>/dev/null || true
+
+      # completed_wis에서 해당 WI 제거
+      local wi_prefix
+      wi_prefix=$(echo "$title" | grep -oE 'WI-[0-9]+-[a-z]+' | head -1)
+      if [[ -n "${wi_prefix:-}" && -f "$COMPLETED_FILE" ]]; then
+        grep -v "^${wi_prefix}$" "$COMPLETED_FILE" > "${COMPLETED_FILE}.tmp" 2>/dev/null || true
+        mv "${COMPLETED_FILE}.tmp" "$COMPLETED_FILE" 2>/dev/null || true
+      fi
+    fi
+  done <<< "$conflicting_prs"
+}
+
 #==============================
 # Section 3: CLEANUP & TRAPS
 #==============================
@@ -1342,6 +1397,9 @@ main() {
 
   # stale completed 정리 (PR 충돌로 close된 WI 재실행)
   cleanup_stale_completed
+
+  # 충돌 PR 자동 rebase (실패 시 close → 재실행)
+  resolve_conflicting_prs
 
   # regression issue → fix_plan에 WI-NNN-1-fix 추가
   inject_regression_wis
