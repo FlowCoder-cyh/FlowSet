@@ -21,11 +21,22 @@ jobs:
 
       - run: npm ci
 
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          NEXTAUTH_URL: http://localhost:3000
+
       - name: Install Playwright
         run: npx playwright install --with-deps chromium
 
       - name: Run E2E tests
-        run: npx playwright test --reporter=json > e2e-results.json 2>&1 || true
+        run: |
+          npm start &
+          npx wait-on http://localhost:3000 --timeout 30000
+          npx playwright test --reporter=json > e2e-results.json 2>&1 || true
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
