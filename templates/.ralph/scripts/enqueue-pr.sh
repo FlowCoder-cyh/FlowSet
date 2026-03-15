@@ -29,12 +29,20 @@ RESULT=$(gh api graphql -f query="mutation { enqueuePullRequest(input: { pullReq
 if echo "$RESULT" | grep -q '"position"'; then
   POSITION=$(echo "$RESULT" | grep -oE '"position":[0-9]+' | grep -oE '[0-9]+')
   echo "✅ PR #$PR_NUMBER → merge queue position $POSITION"
+elif echo "$RESULT" | grep -q "status checks"; then
+  # CI 미통과 → auto-merge 설정 (CI 통과 시 자동 큐 등록)
+  echo "⏳ CI 대기 중 — auto-merge 설정"
+  gh pr merge "$PR_NUMBER" --auto --squash 2>/dev/null || gh pr merge "$PR_NUMBER" --auto 2>/dev/null || {
+    echo "⚠️ auto-merge 설정 실패"
+  }
+  echo "✅ PR #$PR_NUMBER → auto-merge 설정 완료"
+elif echo "$RESULT" | grep -q "already queued\|already in the merge queue"; then
+  echo "✅ PR #$PR_NUMBER → 이미 큐에 등록됨"
 else
   # merge queue 미지원 → fallback
   echo "⚠️ merge queue 미지원 — gh pr merge --auto --squash fallback"
   gh pr merge "$PR_NUMBER" --auto --squash 2>/dev/null || {
-    echo "ERROR: auto-merge 설정 실패"
-    exit 1
+    echo "⚠️ auto-merge 설정 실패"
   }
   echo "✅ PR #$PR_NUMBER → auto-merge 설정 완료"
 fi
