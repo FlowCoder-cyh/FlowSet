@@ -172,6 +172,18 @@ gh api --method POST "repos/{org}/{project-name}/rulesets" --input - <<'RULES' 2
         ]
       }
     },
+    {
+      "type": "merge_queue",
+      "parameters": {
+        "check_response_timeout_minutes": 10,
+        "grouping_strategy": "ALLGREEN",
+        "max_entries_to_build": 5,
+        "max_entries_to_merge": 5,
+        "merge_method": "SQUASH",
+        "min_entries_to_merge": 1,
+        "min_entries_to_merge_wait_minutes": 1
+      }
+    },
     { "type": "non_fast_forward" },
     { "type": "deletion" }
   ]
