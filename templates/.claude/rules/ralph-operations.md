@@ -40,3 +40,16 @@
 - E2E WI가 할당되면 스킵 처리 (guardrails.md에 기록)
 - E2E 테스트는 대화형 세션에서 Playwright로 실제 화면을 보며 작성
 - **단위 테스트(jest/vitest)는 워커가 TDD로 작성** — 이건 정상 처리
+
+## 8. 머지 대기 (v2.2.0)
+- PR enqueue 후 **머지 완료를 확인한 다음** 다음 작업 시작
+- 이전 PR이 머지 안 된 상태에서 다음 브랜치 작업 금지 (stale base 방지)
+- 대화형: `enqueue-pr.sh --wait`로 머지 확인 후 `git checkout main && git pull`
+- 루프: ralph.sh의 `wait_for_merge` / `wait_for_batch_merge`가 자동 처리
+- timeout 15분 → 다음으로 이동 (guardrails 기록)
+
+## 9. RAG 업데이트 강제 (v2.2.0)
+- API, 페이지, 스키마 변경 시 `.claude/memory/rag/` 해당 파일 업데이트 필수
+- 루프: `validate_post_iteration`이 자동 감지 → 다음 워커에 업데이트 지시 주입
+- 대화형: Stop hook(`stop-rag-check.sh`)이 파일 변경 감지 → 알림
+- `/mem:save` 시 RAG 동기화 검증
