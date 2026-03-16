@@ -14,7 +14,7 @@ set -euo pipefail
 #   - safe_sync_main() uses fetch+reset (safe: no local commits on main)
 #   - Removed: sync_completed_file, check_wi_implemented, recover_stale_wis
 #==============================
-RALPH_VERSION="2.0.0"
+RALPH_VERSION="2.2.0"
 
 # UTF-8 강제 (Windows 한글 깨짐 방지)
 export LANG=en_US.UTF-8
@@ -510,6 +510,43 @@ validate_post_iteration() {
     fi
   done
 
+  # 3. RAG 업데이트 필요 여부 검증
+  if [[ -d ".claude/memory/rag" ]]; then
+    local changed_files
+    changed_files=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || true)
+
+    local rag_needed=false
+    local rag_reason=""
+
+    if echo "$changed_files" | grep -qE '^(src/)?app/api/'; then
+      rag_needed=true
+      rag_reason="API 변경"
+    fi
+    if echo "$changed_files" | grep -qE 'page\.tsx$'; then
+      rag_needed=true
+      rag_reason="${rag_reason:+$rag_reason + }페이지 변경"
+    fi
+    if echo "$changed_files" | grep -qE '^prisma/'; then
+      rag_needed=true
+      rag_reason="${rag_reason:+$rag_reason + }스키마 변경"
+    fi
+
+    if [[ "$rag_needed" == true ]]; then
+      local rag_updated=false
+      echo "$changed_files" | grep -qE '^\.claude/memory/rag/' && rag_updated=true
+
+      if [[ "$rag_updated" == false ]]; then
+        log "RAG-CHECK: $rag_reason 감지 — RAG 미업데이트"
+        echo "### [$(date '+%Y-%m-%d %H:%M')] RAG 미업데이트: $rag_reason (Iteration #$loop_count)" >> .ralph/guardrails.md
+        echo "[RAG-UPDATE-NEEDED] $rag_reason — .claude/memory/rag/ 파일 업데이트 필요" > .ralph/rag_pending.txt
+      fi
+    fi
+    # 이전 pending이 해결됐으면 제거
+    if [[ -f ".ralph/rag_pending.txt" ]] && echo "$changed_files" | grep -qE '^\.claude/memory/rag/'; then
+      rm -f .ralph/rag_pending.txt
+    fi
+  fi
+
   if [[ $violations -gt 0 ]]; then
     log "POST-VALIDATION: $violations violations detected"
     echo "### [$(date '+%Y-%m-%d %H:%M')] 자동 감지: $violations건 규칙 위반 (Iteration #$loop_count)" >> .ralph/guardrails.md
@@ -888,7 +925,15 @@ $success_patterns
     fi
   fi
 
-  # 5. Guardrails
+  # 5. RAG pending (이전 워커가 RAG 업데이트 놓친 경우)
+  if [[ -f ".ralph/rag_pending.txt" ]]; then
+    parts+="[RAG UPDATE REQUIRED]
+$(cat .ralph/rag_pending.txt)
+이전 워커가 RAG 업데이트를 놓쳤습니다. 이번 작업에서 관련 .claude/memory/rag/ 파일도 함께 업데이트하세요.
+"
+  fi
+
+  # 6. Guardrails
   if [[ -f ".ralph/guardrails.md" ]]; then
     parts+="[GUARDRAILS — 반드시 준수]
 $(cat .ralph/guardrails.md)
@@ -906,6 +951,111 @@ ${regression_issues}
   fi
 
   echo "$parts"
+}
+
+#==============================
+# Section 6.5: MERGE WAIT
+#==============================
+
+wait_for_merge() {
+  # 단일 PR의 머지 완료를 대기 (순차 모드용)
+  # $1: 워커가 작업한 브랜치명
+  local branch="${1:-}"
+
+  # 브랜치에서 PR 번호 조회
+  local pr_number
+  pr_number=$(gh pr list --head "$branch" --state open --json number --jq '.[0].number' 2>/dev/null || true)
+
+  if [[ -z "${pr_number:-}" ]]; then
+    # open PR 없음 → 이미 머지됐거나 PR 생성 실패
+    pr_number=$(gh pr list --head "$branch" --state merged --json number --jq '.[0].number' 2>/dev/null || true)
+    if [[ -n "${pr_number:-}" ]]; then
+      log "✅ PR #$pr_number 이미 머지됨"
+      return 0
+    fi
+    log "⚠️ 브랜치 $branch에 대한 PR 없음"
+    return 2
+  fi
+
+  log "⏳ PR #$pr_number 머지 대기..."
+  bash .ralph/scripts/enqueue-pr.sh "$pr_number" --wait --timeout 15
+  local result=$?
+
+  case $result in
+    0) log "✅ PR #$pr_number 머지 완료" ;;
+    1) log "❌ PR #$pr_number 실패/닫힘 — guardrails 기록"
+       echo "### [$(date '+%Y-%m-%d %H:%M')] PR #$pr_number 머지 실패 (Iteration #$loop_count)" >> .ralph/guardrails.md ;;
+    2) log "⚠️ PR #$pr_number timeout — 다음 iteration에서 처리" ;;
+  esac
+  return $result
+}
+
+wait_for_batch_merge() {
+  # batch 내 모든 PR의 머지 완료를 대기 (병렬 모드용)
+  # $@: PR 번호 목록
+  local pr_numbers=("$@")
+  local total=${#pr_numbers[@]}
+
+  if [[ $total -eq 0 ]]; then
+    return 0
+  fi
+
+  log "⏳ batch ${total}개 PR 머지 대기..."
+
+  local merged=0
+  local failed=0
+  local timeout_sec=$((15 * 60))
+  local elapsed=0
+  local poll_interval=15
+
+  # 각 PR 상태 추적
+  declare -A pr_states
+  for pr in "${pr_numbers[@]}"; do
+    pr_states[$pr]="pending"
+  done
+
+  while [[ $elapsed -lt $timeout_sec ]]; do
+    local all_done=true
+
+    for pr in "${pr_numbers[@]}"; do
+      [[ "${pr_states[$pr]}" != "pending" ]] && continue
+      all_done=false
+
+      local state
+      state=$(gh pr view "$pr" --json state --jq '.state' 2>/dev/null || echo "UNKNOWN")
+
+      case "$state" in
+        MERGED)
+          pr_states[$pr]="merged"
+          merged=$((merged + 1))
+          log "  ✅ PR #$pr 머지됨 ($merged/$total)"
+          ;;
+        CLOSED)
+          pr_states[$pr]="failed"
+          failed=$((failed + 1))
+          log "  ❌ PR #$pr 실패/닫힘 ($failed failed)"
+          echo "### [$(date '+%Y-%m-%d %H:%M')] batch PR #$pr 머지 실패" >> .ralph/guardrails.md
+          ;;
+      esac
+    done
+
+    $all_done && break
+
+    sleep "$poll_interval"
+    elapsed=$((elapsed + poll_interval))
+    printf "\r  ⏳ %dm %02ds / 15m | 머지: %d/%d | 실패: %d  " "$((elapsed/60))" "$((elapsed%60))" "$merged" "$total" "$failed"
+  done
+  echo ""
+
+  # timeout된 PR 처리
+  for pr in "${pr_numbers[@]}"; do
+    if [[ "${pr_states[$pr]}" == "pending" ]]; then
+      log "  ⚠️ PR #$pr timeout"
+    fi
+  done
+
+  log "📊 batch 결과: 머지 $merged / 실패 $failed / timeout $((total - merged - failed))"
+  return 0
 }
 
 inject_regression_wis() {
@@ -1521,18 +1671,33 @@ main() {
         log "Post-validation failed - check guardrails.md"
       }
 
-      # 순차 모드: 완료 기록 + 패턴 기록
-      local current_sha_now
-      current_sha_now=$(git rev-parse HEAD 2>/dev/null || echo "none")
-      if [[ "$current_sha_now" != "$last_git_sha" ]]; then
-        # SHA 변경 = PR 머지됨 → completed_wis.txt에 기록
-        mark_wi_done "$current_wi" || true
-        last_git_sha="$current_sha_now"
-        local seq_files
-        seq_files=$(git diff-tree --no-commit-id --name-only -r HEAD 2>/dev/null | head -5 | tr '\n' ', ')
-        record_pattern "$current_wi" "merged" "${seq_files%,}" "$iter_elapsed" || true
+      # 순차 모드: 머지 대기 → 완료 기록
+      # 워커가 생성한 브랜치 감지 (현재 브랜치 또는 최근 push한 브랜치)
+      local worker_branch
+      worker_branch=$(git branch --show-current 2>/dev/null || echo "main")
+      if [[ "$worker_branch" != "main" ]]; then
+        # 워커가 브랜치에서 작업 완료 → 머지 대기
+        local merge_result=0
+        wait_for_merge "$worker_branch" || merge_result=$?
+        safe_sync_main
+        if [[ $merge_result -eq 0 ]]; then
+          mark_wi_done "$current_wi" || true
+          record_pattern "$current_wi" "merged" "" "$iter_elapsed" || true
+        else
+          record_pattern "$current_wi" "skipped" "" "$iter_elapsed" || true
+        fi
+        last_git_sha=$(git rev-parse HEAD 2>/dev/null || echo "none")
       else
-        record_pattern "$current_wi" "skipped" "" "$iter_elapsed" || true
+        # main에 있음 → SHA 변경으로 판단 (기존 로직)
+        local current_sha_now
+        current_sha_now=$(git rev-parse HEAD 2>/dev/null || echo "none")
+        if [[ "$current_sha_now" != "$last_git_sha" ]]; then
+          mark_wi_done "$current_wi" || true
+          last_git_sha="$current_sha_now"
+          record_pattern "$current_wi" "merged" "" "$iter_elapsed" || true
+        else
+          record_pattern "$current_wi" "skipped" "" "$iter_elapsed" || true
+        fi
       fi
 
       check_progress || break
