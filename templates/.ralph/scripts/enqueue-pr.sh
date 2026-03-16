@@ -23,8 +23,14 @@ if [[ -z "${PR_NODE_ID:-}" ]]; then
   exit 1
 fi
 
-# merge queue 존재 여부 확인
-HAS_MERGE_QUEUE=$(gh api repos/"$OWNER"/"$REPO"/rulesets --jq '[.[] | select(.rules[]?.type == "merge_queue")] | length' 2>/dev/null || echo "0")
+# merge queue 존재 여부 확인 (리스팅 API에 rules 미포함 → 개별 조회)
+HAS_MERGE_QUEUE=0
+for _rid in $(gh api repos/"$OWNER"/"$REPO"/rulesets --jq '.[].id' 2>/dev/null); do
+  if gh api repos/"$OWNER"/"$REPO"/rulesets/"$_rid" --jq '.rules[].type' 2>/dev/null | grep -q "merge_queue"; then
+    HAS_MERGE_QUEUE=1
+    break
+  fi
+done
 
 # merge queue에 등록 시도
 RESULT=$(gh api graphql -f query="mutation { enqueuePullRequest(input: { pullRequestId: \"$PR_NODE_ID\" }) { mergeQueueEntry { position } } }" 2>&1 || true)
