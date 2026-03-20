@@ -112,6 +112,7 @@ cp "$TEMPLATE_DIR/.ralph/hooks/pre-push" ./.ralph/hooks/pre-push
 mkdir -p ./.ralph/scripts
 cp "$TEMPLATE_DIR/.ralph/scripts/enqueue-pr.sh" ./.ralph/scripts/enqueue-pr.sh
 cp "$TEMPLATE_DIR/.ralph/scripts/launch-loop.sh" ./.ralph/scripts/launch-loop.sh
+cp "$TEMPLATE_DIR/.ralph/scripts/verify-requirements.sh" ./.ralph/scripts/verify-requirements.sh
 
 # .github/ 내부 파일 복사
 mkdir -p ./.github/workflows

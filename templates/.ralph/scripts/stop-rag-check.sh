@@ -74,4 +74,14 @@ if [[ -f ".ralph/requirements.md" ]]; then
   fi
 fi
 
+# 검증 에이전트 자동 실행 (소스 파일 3개+ 변경 시)
+if [[ -f ".ralph/scripts/verify-requirements.sh" && -f ".ralph/requirements.md" ]]; then
+  src_count=$(echo "$changed_files" | grep -cE '\.(ts|tsx|js|jsx|py|go|rs)$' 2>/dev/null || echo "0")
+  if [[ "$src_count" -ge 3 ]]; then
+    echo ""
+    echo "🔍 검증 에이전트 실행 중 (소스 파일 ${src_count}개 변경 감지)..."
+    bash .ralph/scripts/verify-requirements.sh 2>&1 || true
+  fi
+fi
+
 exit 0

@@ -1777,6 +1777,20 @@ main() {
         log "Post-validation failed - check guardrails.md"
       }
 
+      # 검증 에이전트 실행 (구현-검증 분리)
+      if [[ -f ".ralph/scripts/verify-requirements.sh" && -f ".ralph/requirements.md" ]]; then
+        log "🔍 검증 에이전트 실행..."
+        local verify_result=0
+        bash .ralph/scripts/verify-requirements.sh || verify_result=$?
+        if [[ $verify_result -eq 2 ]]; then
+          log "⚠️ 검증 에이전트: 요구사항 누락 감지 — guardrails 기록"
+          if [[ -f ".ralph/verify-result.md" ]]; then
+            echo "### [$(date '+%Y-%m-%d %H:%M')] 검증 에이전트 — 요구사항 누락 (Iteration #$loop_count)" >> .ralph/guardrails.md
+            grep -E '^- (❌|⚠️)' .ralph/verify-result.md >> .ralph/guardrails.md 2>/dev/null || true
+          fi
+        fi
+      fi
+
       # 순차 모드: 머지 대기 → 완료 기록
       # 워커가 생성한 브랜치 감지 (현재 브랜치 또는 최근 push한 브랜치)
       local worker_branch
