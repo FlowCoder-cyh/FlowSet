@@ -220,6 +220,15 @@ L3까지 확정되면 각 기능별 구체적 태스크를 자동 생성.
 - 워커가 WI 설명만 보고도 Prisma를 사용해야 함을 인지할 수 있어야 함
 - DB가 없는 프로젝트는 해당 없음
 
+**⚠️ WI 설명에 데이터 흐름 + 수용 기준 포함:**
+- API 태스크: SSOT 엔드포인트 명시 + HTTP 메서드 + 응답 형식
+  - 예: "출근 기록 API (SSOT: /api/attendance, GET+POST, api-standard.md 준수)"
+- UI 태스크: 호출할 API + 성공 시 동작 명시
+  - 예: "출근 폼 UI → POST /api/attendance → 성공 시 목록 리프레시 (wireframes/attendance.html 참조)"
+- 수용 기준: 검증 가능한 1줄
+  - 예: "수용 기준: POST 호출 시 DB에 레코드 생성 + 에러 시 400 반환"
+- `/wi:start`에서 .ralph/contracts/data-flow.md가 있으면 SSOT 엔드포인트 자동 참조
+
 ### Step 5: PRD 초안 생성 & 피드백
 
 모든 정보가 모이면 **PRD.md 초안을 즉시 생성**하여 보여줌:

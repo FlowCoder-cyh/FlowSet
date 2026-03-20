@@ -547,6 +547,46 @@ validate_post_iteration() {
     fi
   fi
 
+  # 4. scope creep 감지 (변경 파일 수 과다)
+  local changed_files_all
+  changed_files_all=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || true)
+  local file_count
+  file_count=$(echo "$changed_files_all" | grep -c '.' 2>/dev/null || echo "0")
+  if [[ $file_count -gt 10 ]]; then
+    log "WARNING: 변경 파일 ${file_count}개 (10개 초과) — scope creep 의심"
+    echo "### [$(date '+%Y-%m-%d %H:%M')] scope creep: ${file_count}개 파일 변경 (Iteration #$loop_count)" >> .ralph/guardrails.md
+  fi
+
+  # 5. 금지 파일 수정 감지
+  if echo "$changed_files_all" | grep -qE '^\.(env|env\.local)$|^package-lock\.json$' 2>/dev/null; then
+    log "WARNING: 금지 파일 수정 감지 (.env/package-lock)"
+    echo "### [$(date '+%Y-%m-%d %H:%M')] 금지 파일 수정 감지 (Iteration #$loop_count)" >> .ralph/guardrails.md
+  fi
+
+  # 6. 빈 구현 감지 (TODO/placeholder/stub)
+  if [[ -n "$changed_files_all" ]]; then
+    local incomplete
+    incomplete=$(echo "$changed_files_all" | xargs grep -l 'TODO\|FIXME\|placeholder\|stub\|not implemented\|NotImplemented' 2>/dev/null | head -3 || true)
+    if [[ -n "$incomplete" ]]; then
+      log "WARNING: 불완전 구현 감지 (TODO/placeholder) — $incomplete"
+      echo "### [$(date '+%Y-%m-%d %H:%M')] 불완전 구현: $incomplete (Iteration #$loop_count)" >> .ralph/guardrails.md
+    fi
+  fi
+
+  # 7. API 형식 검증 (contracts/ 존재 시)
+  if [[ -f ".ralph/contracts/api-standard.md" ]] && [[ -n "$changed_files_all" ]]; then
+    local new_apis
+    new_apis=$(echo "$changed_files_all" | grep -E 'route\.(ts|js)$' || true)
+    if [[ -n "$new_apis" ]]; then
+      for api_file in $new_apis; do
+        if [[ -f "$api_file" ]] && ! grep -q "NextResponse\|Response\|json(" "$api_file" 2>/dev/null; then
+          log "WARNING: API 형식 미준수 — $api_file"
+          echo "### [$(date '+%Y-%m-%d %H:%M')] API 형식 미준수: $api_file (Iteration #$loop_count)" >> .ralph/guardrails.md
+        fi
+      done
+    fi
+  fi
+
   if [[ $violations -gt 0 ]]; then
     log "POST-VALIDATION: $violations violations detected"
     echo "### [$(date '+%Y-%m-%d %H:%M')] 자동 감지: $violations건 규칙 위반 (Iteration #$loop_count)" >> .ralph/guardrails.md
@@ -875,6 +915,24 @@ record_pattern() {
   # 최근 50건만 유지 (오래된 패턴 자동 정리)
   if [[ -f "$patterns_file" ]] && [[ $(wc -l < "$patterns_file") -gt 50 ]]; then
     tail -50 "$patterns_file" > "${patterns_file}.tmp" 2>/dev/null && mv "${patterns_file}.tmp" "$patterns_file" 2>/dev/null || true
+  fi
+}
+
+log_trace() {
+  # 구조화된 trace 기록 (JSON Lines) — eval harness 데이터
+  # $1: WI 이름, $2: result, $3: files changed count, $4: elapsed seconds
+  local wi_name="${1:-}" result="${2:-}" files_count="${3:-0}" elapsed="${4:-0}"
+  local trace_file=".ralph/logs/trace.jsonl"
+  mkdir -p .ralph/logs
+
+  local cost="${iteration_cost:-0}"
+  local turns="${MAX_TURNS:-0}"
+
+  echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"iter\":$loop_count,\"wi\":\"${wi_name}\",\"result\":\"${result}\",\"files\":${files_count},\"sec\":${elapsed},\"cost\":${cost}}" >> "$trace_file" 2>/dev/null || true
+
+  # 최근 200건만 유지
+  if [[ -f "$trace_file" ]] && [[ $(wc -l < "$trace_file" 2>/dev/null || echo 0) -gt 200 ]]; then
+    tail -200 "$trace_file" > "${trace_file}.tmp" 2>/dev/null && mv "${trace_file}.tmp" "$trace_file" 2>/dev/null || true
   fi
 }
 
@@ -1680,11 +1738,14 @@ main() {
         local merge_result=0
         wait_for_merge "$worker_branch" || merge_result=$?
         safe_sync_main
+        local fc=$(git diff --stat HEAD~1 HEAD 2>/dev/null | tail -1 | grep -oE '[0-9]+ file' | grep -oE '[0-9]+' || echo "0")
         if [[ $merge_result -eq 0 ]]; then
           mark_wi_done "$current_wi" || true
           record_pattern "$current_wi" "merged" "" "$iter_elapsed" || true
+          log_trace "$current_wi" "merged" "$fc" "$iter_elapsed"
         else
           record_pattern "$current_wi" "skipped" "" "$iter_elapsed" || true
+          log_trace "$current_wi" "skipped" "0" "$iter_elapsed"
         fi
         last_git_sha=$(git rev-parse HEAD 2>/dev/null || echo "none")
       else
@@ -1695,8 +1756,10 @@ main() {
           mark_wi_done "$current_wi" || true
           last_git_sha="$current_sha_now"
           record_pattern "$current_wi" "merged" "" "$iter_elapsed" || true
+          log_trace "$current_wi" "merged" "0" "$iter_elapsed"
         else
           record_pattern "$current_wi" "skipped" "" "$iter_elapsed" || true
+          log_trace "$current_wi" "skipped" "0" "$iter_elapsed"
         fi
       fi
 
