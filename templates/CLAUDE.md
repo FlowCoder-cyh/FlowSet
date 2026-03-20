@@ -16,33 +16,26 @@ src/                    → 소스 코드
 wireframes/             → 와이어프레임 HTML (PRD 확정 시 생성)
 docs/                   → 문서 계층구조 (L0~L4)
 .ralph/                 → Ralph Loop 설정
+.ralph/requirements.md  → 사용자 원본 요구사항 (수정 금지)
+.ralph/contracts/       → API 표준 + 데이터 흐름 계약
 .github/                → CI/CD 워크플로우
-.claude/rules/          → 프로젝트 규칙
+.claude/rules/          → 프로젝트 규칙 (자동 로드)
 .claude/memory/rag/     → RAG 참조 문서
 ```
 
-## 규칙
-- 글로벌 규칙: `~/.claude/rules/wi-*.md` 자동 적용
-- 프로젝트 규칙: `.claude/rules/project.md`
-- **RAG 규칙: `.claude/rules/rag-context.md`** — 작업 시 관련 RAG 자동 로드
-- 커밋: `WI-NNN-[type] 한글 작업명` 형식
-- main 직접 push 금지 → PR 필수
+## 핵심 규칙 (5개 — 나머지는 hook/validate가 자동 강제)
+1. **requirements.md 수정 금지**: 사용자 원본 요구사항. 범위 축소 시 사용자 승인 필수.
+2. **머지 확인 후 다음**: PR 머지 완료 → `git pull` → 다음 브랜치. 이전 PR 머지 전 다음 작업 금지.
+3. **요구사항 충실 이행**: "나중에", "Phase 2로", "일단 빼고" 금지. 어려우면 확인을 구할 것.
+4. **검증 후 커밋**: lint → build → test 통과 + contracts/ 준수 확인 후에만.
+5. **코드 숙지 먼저**: 수정 전 관련 파일 전문 읽기. 추측으로 구현 금지.
 
-## 개발 프로세스 (반드시 준수)
-1. **브랜치 먼저**: git 추적 파일 변경 시 무조건 브랜치 생성 후 작업
-2. **커밋 전 확인**: `git status`로 빠진 파일 없는지 확인
-3. **로컬 검증**: lint + build + test 전부 통과 후 push
-4. **PR → enqueue**: `gh pr create` → `bash .ralph/scripts/enqueue-pr.sh <PR번호>`
-5. **머지 확인 후 다음**: PR 머지 완료 확인 → `git checkout main && git pull` → 다음 브랜치
-6. **순서 준수**: 이전 PR 머지 전 다음 브랜치 작업 금지 (stale base 방지)
-7. **짜잘한 변경 단독 PR 금지**: 설정 변경은 다음 기능 브랜치에 포함
-8. **main에서 직접 작업 금지**: reset --hard 시 변경 유실
-
-## 구현 원칙 (모든 작업에 적용)
-1. **코드 숙지 먼저**: 수정 대상 + 관련 파일을 전문 읽고 파악
-2. **영향도 평가**: 변경이 영향을 미치는 모든 파일/API/페이지 사전 파악
-3. **전수 조사**: 동일 패턴이 다른 곳에도 있는지 전수 검색
-4. **사이드이펙트 사전 분석**: 깨질 수 있는 기존 기능 미리 식별
-5. **장점 상쇄 없는 해결**: 한쪽 고치면서 다른 쪽 깨지는 해결 금지
-6. **검증 후 커밋**: lint → build → test 통과 확인 후에만
-7. **E2E = 브라우저 UI 조작**: `request.get/post` (API 직접 호출)는 E2E가 아님. `page.goto → page.fill → page.click → 결과 검증` 패턴 필수. wireframes/의 data-testid 셀렉터 사용
+## 자동 강제 (hook/validate — 규칙으로 쓸 필요 없음)
+- scope creep (10파일 초과) → validate 경고
+- TODO/placeholder → validate 경고
+- .env/package-lock 수정 → validate 경고
+- API 형식 미준수 → validate 경고
+- RAG 미업데이트 → Stop hook 경고
+- E2E API shortcut → Stop hook 경고
+- requirements.md 수정 → validate 차단 + Stop hook 경고
+- TDD 미수행 (TESTS_ADDED=0) → validate 경고

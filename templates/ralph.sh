@@ -510,6 +510,18 @@ validate_post_iteration() {
     fi
   done
 
+  # 2.5 requirements.md 수정 감지 (사용자 원본 보호)
+  if [[ -f ".ralph/requirements.md" ]]; then
+    local req_changed
+    req_changed=$(git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -F '.ralph/requirements.md' || true)
+    if [[ -n "$req_changed" ]]; then
+      log "VIOLATION: requirements.md 수정 감지 — 사용자 원본 수정 금지"
+      violations=$((violations + 1))
+      # 원본 복원
+      git checkout HEAD~1 -- .ralph/requirements.md 2>/dev/null || true
+    fi
+  fi
+
   # 3. RAG 업데이트 필요 여부 검증
   if [[ -d ".claude/memory/rag" ]]; then
     local changed_files

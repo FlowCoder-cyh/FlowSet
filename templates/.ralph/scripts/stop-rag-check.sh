@@ -61,4 +61,17 @@ if [[ -n "$e2e_files" ]]; then
   done
 fi
 
+# 사용자 원본 요구사항 수정 감지
+if [[ -f ".ralph/requirements.md" ]]; then
+  req_modified=false
+  echo "$changed_files" | grep -qF '.ralph/requirements.md' 2>/dev/null && req_modified=true
+  if [[ "$req_modified" == true ]]; then
+    echo ""
+    echo "🚫 .ralph/requirements.md 수정 감지!"
+    echo "   이 파일은 사용자 원본 요구사항이며 에이전트가 수정할 수 없습니다."
+    echo "   변경을 되돌리세요: git checkout -- .ralph/requirements.md"
+    echo ""
+  fi
+fi
+
 exit 0

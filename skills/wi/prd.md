@@ -265,12 +265,41 @@ Write docs/L3-feature/{name}.md (각 소분류별)
 # prd-state.json은 삭제하지 않음 (wi:status에서 참조)
 ```
 
+**사용자 원본 요구사항 고정 (에이전트 수정 금지):**
+```bash
+# .ralph/requirements.md 생성
+# prd-state.json의 user_constraints[] + decisions[]에서 추출
+# 이 파일은 사용자 원본이며, 에이전트가 절대 수정하지 않음
+# 매 커밋 시 이 파일 기준으로 구현 누락 여부 검증됨
+```
+
+`.ralph/requirements.md` 형식:
+```markdown
+# 사용자 원본 요구사항 (수정 금지)
+# 이 파일은 /wi:prd 확정 시 자동 생성됩니다.
+# 에이전트가 이 파일을 수정하면 validate_post_iteration에서 위반으로 감지됩니다.
+
+## 사용자 제약조건
+{user_constraints[] 각 항목을 그대로 기록}
+
+## 사용자 결정사항
+{decisions[] 각 항목: chosen + reason}
+
+## 기능 요구사항 (L3 기준)
+{PRD의 L3 기능별 1줄 요약 — 검증 키워드 포함}
+예:
+- 출근/퇴근 기록: IP 기반 검증, 실시간 기록, API 연동
+- 휴가 신청: 잔여 연차 계산, 승인 워크플로우, 이메일 알림
+- 고용지원금: 외부 API 연동(고용24), 자동 매칭
+```
+
 안내 출력:
 ```
 PRD가 확정되었습니다.
 
 📄 PRD.md 저장 완료
 📁 docs/ 계층 문서 생성 완료
+🔒 .ralph/requirements.md 생성 (사용자 원본 — 수정 금지)
 
 다음 단계: /wi:start 로 Ralph Loop을 시작하세요.
 ```
