@@ -1,5 +1,45 @@
 # Changelog
 
+## [v3.0.0] - 2026-03-23
+
+### Obsidian Vault 통합
+- `vault-helpers.sh`: Obsidian Local REST API 연동 (읽기/쓰기/검색)
+- `ralph.sh`: save_state()에서 vault state.md 자동 동기화
+- `ralph.sh`: preflight()에서 vault 연결 확인 + graceful degradation
+- `ralph.sh`: build_rag_context()에서 vault 시맨틱 검색 추가 (이전 세션 지식)
+- `ralph.sh`: record_pattern()에서 vault에 패턴 기록
+- `stop-rag-check.sh`: 세션 종료 시 vault에 변경사항 기록
+- `.ralphrc`: VAULT_ENABLED, VAULT_URL, VAULT_API_KEY, VAULT_PROJECT_NAME 추가
+- VAULT_ENABLED=false 기본값 — v2.x 호환, vault 없이도 동작
+
+### 소유권 기반 파일 수정 제한
+- `check-ownership.sh`: PreToolUse hook (Edit|Write 매칭)
+- `ownership.json`: 팀별 소유 디렉토리 매핑 템플릿
+- TEAM_NAME 미설정 시 무동작 (solo 모드 호환)
+- hotfix/ 브랜치에서 소유권 제한 완화
+- settings.json: PreToolUse + Stop hook 구성
+
+### 계약 기반 팀 간 소통
+- `.ralph/contracts/api-standard.md`: API 응답 형식, HTTP 상태 코드, 변경 규칙
+- `.ralph/contracts/data-flow.md`: SSOT 엔드포인트, 팀 간 데이터 공유 규칙
+
+### Agent Teams 템플릿
+- `.claude/agents/lead-workflow.md`: 리드 5단계 워크플로우 (요구사항→복잡도→태스크→spawn→통합)
+- `.claude/agents/spawn-template.md`: 팀원 초기화 절차
+- `.claude/agents/team-roles.md`: 5개 기본 역할 (frontend/backend/qa/devops/planning)
+- Agent Teams 없이도 전체 시스템 동작 — 선택적 활성화
+
+### 스킬 업데이트
+- `wi:init`: vault-helpers, check-ownership, ownership.json, contracts, agents 복사 추가
+- `wi:start`: Phase 4.7 Vault 연동 설정 추가
+
+### 설계 원칙
+- v2.x 하위 호환: VAULT_ENABLED=false, TEAM_NAME 미설정 시 기존 동작 유지
+- vault 연결 실패 시 파일 기반 RAG 폴백 (graceful degradation)
+- ralph.sh 메인 루프(Section 9) 구조 변경 없음
+
+---
+
 ## [v2.2.0] - 2026-03-21
 
 ### 머지 대기 — stale base 완전 제거

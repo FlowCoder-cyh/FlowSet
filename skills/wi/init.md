@@ -126,11 +126,25 @@ mkdir -p ./.claude/rules
 cp "$TEMPLATE_DIR/.claude/rules/ralph-operations.md" ./.claude/rules/ralph-operations.md
 cp "$TEMPLATE_DIR/.claude/rules/project.md" ./.claude/rules/project.md
 
-# .claude/settings.json (Stop hook — RAG 업데이트 강제)
+# .claude/settings.json (PreToolUse 소유권 hook + Stop hook)
 cp "$TEMPLATE_DIR/.claude/settings.json" ./.claude/settings.json
 
 # Stop hook 스크립트
 cp "$TEMPLATE_DIR/.ralph/scripts/stop-rag-check.sh" ./.ralph/scripts/stop-rag-check.sh
+
+# v3.0: 소유권 hook + vault helpers + 계약 템플릿
+cp "$TEMPLATE_DIR/.ralph/scripts/check-ownership.sh" ./.ralph/scripts/check-ownership.sh
+cp "$TEMPLATE_DIR/.ralph/scripts/vault-helpers.sh" ./.ralph/scripts/vault-helpers.sh
+cp "$TEMPLATE_DIR/.ralph/ownership.json" ./.ralph/ownership.json
+mkdir -p ./.ralph/contracts
+cp "$TEMPLATE_DIR/.ralph/contracts/api-standard.md" ./.ralph/contracts/api-standard.md
+cp "$TEMPLATE_DIR/.ralph/contracts/data-flow.md" ./.ralph/contracts/data-flow.md
+
+# v3.0: Agent Teams 템플릿 (선택적 — AGENT_TEAMS 활성화 시 사용)
+if [[ -d "$TEMPLATE_DIR/.claude/agents" ]]; then
+  mkdir -p ./.claude/agents
+  cp "$TEMPLATE_DIR/.claude/agents/"*.md ./.claude/agents/ 2>/dev/null || true
+fi
 
 chmod +x ralph.sh .ralph/hooks/* .ralph/scripts/*.sh 2>/dev/null || true
 ```
@@ -219,15 +233,17 @@ gh api -X PATCH "repos/{org}/{project-name}" -f allow_auto_merge=true
 ```
 ✅ 프로젝트 환경 셋업 완료
 
-📁 구조:
-  .github/        → CI/CD + PR 템플릿
-  .claude/rules/  → 프로젝트 규칙 (글로벌 규칙 상속)
-  .ralph/         → Ralph Loop 설정 + Git Hooks
-  docs/           → 문서 계층구조 (L0~L4)
-  ralph.sh        → Ralph Loop 실행 스크립트
-  .gitattributes  → UTF-8 + LF 강제
-  .editorconfig   → 에디터 설정
-  CLAUDE.md       → 프로젝트 정보
+구조:
+  .github/          → CI/CD + PR 템플릿
+  .claude/rules/    → 프로젝트 규칙 (글로벌 규칙 상속)
+  .claude/agents/   → Agent Teams 팀 역할 정의 (v3.0)
+  .ralph/           → Ralph Loop 설정 + Git Hooks
+  .ralph/contracts/ → 팀 간 계약 (API 표준, 데이터 흐름) (v3.0)
+  docs/             → 문서 계층구조 (L0~L4)
+  ralph.sh          → Ralph Loop 실행 스크립트
+  .gitattributes    → UTF-8 + LF 강제
+  .editorconfig     → 에디터 설정
+  CLAUDE.md         → 프로젝트 정보
 
 🔒 규칙 강제:
   Git Hook (commit-msg) → WI-NNN-[type] 형식 로컬 검증

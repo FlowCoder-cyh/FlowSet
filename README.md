@@ -167,22 +167,25 @@ RalphLoop/
 │   ├── guide.md        # /wi:guide
 │   └── note.md         # /wi:note
 └── templates/          # 프로젝트 템플릿
-    ├── ralph.sh        # Ralph Loop 엔진 (v2.2.0)
+    ├── ralph.sh        # Ralph Loop 엔진 (v3.0)
     ├── CLAUDE.md       # 프로젝트 규칙 (핵심 8개 + 자동 강제)
     ├── .ralph/
     │   ├── PROMPT.md   # AI 지시서 (TDD, 머지 대기, 와이어프레임 참조)
     │   ├── AGENT.md    # 빌드 명령 + 인프라 + 와이어프레임 + 계약
+    │   ├── contracts/  # 팀 간 계약 (API 표준, 데이터 흐름) [v3.0]
+    │   ├── ownership.json # 팀별 소유 디렉토리 매핑 [v3.0]
     │   ├── hooks/      # Git hooks (commit-msg, pre-push)
-    │   └── scripts/    # enqueue-pr.sh, launch-loop.sh, verify-requirements.sh, stop-rag-check.sh
+    │   └── scripts/    # enqueue-pr, launch-loop, verify-requirements, stop-rag-check, check-ownership, vault-helpers [v3.0]
     ├── .claude/
+    │   ├── agents/     # Agent Teams 팀 역할 정의 [v3.0]
     │   ├── rules/      # 운영 규칙 + 코드 품질 (자동 로드)
-    │   └── settings.json # Stop hook 등록
+    │   └── settings.json # PreToolUse + Stop hook 등록
     ├── .github/
     │   └── workflows/  # ci.yml, commit-check.yml, e2e.yml
-    └── .ralphrc        # 루프 설정
+    └── .ralphrc        # 루프 설정 (+ vault 연동 [v3.0])
 ```
 
-### Ralph Loop 동작 원리 (v2.2.0)
+### Ralph Loop 동작 원리 (v3.0)
 
 ```
 bash ralph.sh
