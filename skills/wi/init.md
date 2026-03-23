@@ -141,7 +141,7 @@ cp "$TEMPLATE_DIR/.flowset/tech-debt.md" ./.flowset/tech-debt.md 2>/dev/null || 
 # v3.0: 소유권 hook + vault helpers + 계약 템플릿
 cp "$TEMPLATE_DIR/.flowset/scripts/check-ownership.sh" ./.flowset/scripts/check-ownership.sh
 cp "$TEMPLATE_DIR/.flowset/scripts/vault-helpers.sh" ./.flowset/scripts/vault-helpers.sh
-cp "$TEMPLATE_DIR/.flowset/ownership.json" ./.flowset/ownership.json
+# ownership.json은 프로젝트 타입에 맞게 동적 생성 (아래 Step 3.5)
 mkdir -p ./.flowset/contracts
 cp "$TEMPLATE_DIR/.flowset/contracts/api-standard.md" ./.flowset/contracts/api-standard.md
 cp "$TEMPLATE_DIR/.flowset/contracts/data-flow.md" ./.flowset/contracts/data-flow.md
@@ -165,6 +165,30 @@ chmod +x flowset.sh .flowset/hooks/* .flowset/scripts/*.sh 2>/dev/null || true
 
 #### .claude/rules/project.md
 `{PROJECT_NAME}`, `{PROJECT_TYPE}` 플레이스홀더를 실제 값으로 치환.
+
+### Step 3.5: ownership.json 동적 생성 (프로젝트 타입별)
+
+`.flowsetrc`의 `PROJECT_TYPE`을 기반으로 `.flowset/ownership.json`을 생성합니다.
+프로젝트 구조에 맞는 팀 소유 디렉토리를 매핑합니다.
+
+| PROJECT_TYPE | frontend | backend | qa | shared |
+|---|---|---|---|---|
+| typescript (Next.js) | src/app/**, src/components/** | src/api/**, src/lib/** | e2e/**, tests/**, __tests__/** | package.json, tsconfig.json, prisma/schema.prisma |
+| python | templates/**, static/** | app/**, src/** | tests/**, test_** | requirements.txt, pyproject.toml, alembic/ |
+| rust | src/bin/**, src/ui/** | src/lib/**, src/api/** | tests/**, benches/** | Cargo.toml, Cargo.lock |
+| go | cmd/**, web/** | internal/**, pkg/** | *_test.go (동일 디렉토리) | go.mod, go.sum |
+| java | src/main/resources/** | src/main/java/** | src/test/** | build.gradle, pom.xml |
+
+**생성 절차:**
+1. `PROJECT_TYPE` 확인
+2. 위 매핑에 따라 JSON 생성
+3. `crossTeamReview`는 계약 파일 + 스키마 파일 + 공유 컴포넌트 경로 자동 매핑
+4. `.flowset/ownership.json`에 저장
+
+**devops**는 항상 `.github/**`, `.claude/**`, `.flowset/**`
+**planning**은 항상 `docs/**`, `wireframes/**`
+
+프로젝트 실제 디렉토리 구조를 `tree -L 2` 또는 `ls`로 확인한 후, 존재하는 디렉토리만 포함합니다. 매핑 테이블에 없는 구조면 사용자에게 질문합니다.
 
 ### Step 4: Git Hooks 설치
 ```bash
