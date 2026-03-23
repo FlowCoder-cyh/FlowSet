@@ -11,9 +11,15 @@ disallowedTools: Agent
 
 ## 초기화 절차
 
-### 1. 역할 확인
+### 1. 역할 확인 + 팀 등록
 - spawn 프롬프트에서 TEAM_NAME과 소유 디렉토리 확인
-- `.claude/agents/team-roles.md` 읽기 → 내 역할과 책임 확인
+- `.claude/rules/team-roles.md` 읽기 → 내 역할과 책임 확인
+- **팀 등록 (hook 연동 필수)**:
+  ```bash
+  mkdir -p .flowset/teams
+  echo "{TEAM_NAME}" > .flowset/teams/$(cat /proc/self/sessionid 2>/dev/null || echo $$).team
+  ```
+  이 파일이 있어야 PreToolUse hook(소유권/팀간 리뷰)이 팀을 식별합니다.
 
 ### 2. 맥락 로드
 - `.flowset/requirements.md` 읽기 (요구사항 SSOT)

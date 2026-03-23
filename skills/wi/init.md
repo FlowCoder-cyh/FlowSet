@@ -65,7 +65,7 @@ docs/
   L3-feature/           # 소분류 (개별 기능)
   L4-task/              # 상세분류 (WI 단위)
 flowset.sh                # FlowSet 스크립트
-.flowsetrc                # Ralph 설정
+.flowsetrc                # FlowSet 설정
 .gitattributes          # UTF-8 + LF 강제
 .editorconfig           # 에디터 설정
 CLAUDE.md               # 프로젝트 정보 (규칙은 rules/ 참조)
@@ -141,6 +141,7 @@ cp "$TEMPLATE_DIR/.flowset/tech-debt.md" ./.flowset/tech-debt.md 2>/dev/null || 
 # v3.0: 소유권 hook + vault helpers + 계약 템플릿
 cp "$TEMPLATE_DIR/.flowset/scripts/check-ownership.sh" ./.flowset/scripts/check-ownership.sh
 cp "$TEMPLATE_DIR/.flowset/scripts/vault-helpers.sh" ./.flowset/scripts/vault-helpers.sh
+cp "$TEMPLATE_DIR/.flowset/scripts/resolve-team.sh" ./.flowset/scripts/resolve-team.sh
 # ownership.json은 프로젝트 타입에 맞게 동적 생성 (아래 Step 3.5)
 mkdir -p ./.flowset/contracts
 cp "$TEMPLATE_DIR/.flowset/contracts/api-standard.md" ./.flowset/contracts/api-standard.md

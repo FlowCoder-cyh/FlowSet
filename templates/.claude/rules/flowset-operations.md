@@ -27,7 +27,7 @@
 ## 2. flowset.sh — 직접 생성/수정 금지
 - `~/.claude/templates/flowset/`에서 복사된 것만 사용
 - 직접 작성하거나 내용을 수정하지 않음
-- 버전 확인: `grep FLOWSET_VERSION flowset.sh` → `2.0.0`이어야 함
+- 버전 확인: `grep FLOWSET_VERSION flowset.sh` → `3.0.0`이어야 함
 
 ## 3. PR 머지 — enqueue-pr.sh 사용
 - `gh pr merge --auto --squash` 사용 금지

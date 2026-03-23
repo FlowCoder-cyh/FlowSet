@@ -537,7 +537,7 @@ validate_post_iteration() {
   # 2. .flowset/ 파일 삭제 여부 확인
   for f in "$PROMPT_FILE" "$FIX_PLAN" ".flowset/AGENT.md" ".flowset/guardrails.md"; do
     if [[ ! -f "$f" ]]; then
-      log "VIOLATION: Ralph 파일 삭제됨 - $f"
+      log "VIOLATION: FlowSet 파일 삭제됨 - $f"
       violations=$((violations + 1))
     fi
   done
