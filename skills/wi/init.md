@@ -190,6 +190,152 @@ chmod +x flowset.sh .flowset/hooks/* .flowset/scripts/*.sh 2>/dev/null || true
 
 프로젝트 실제 디렉토리 구조를 `tree -L 2` 또는 `ls`로 확인한 후, 존재하는 디렉토리만 포함합니다. 매핑 테이블에 없는 구조면 사용자에게 질문합니다.
 
+### Step 3.6: Obsidian + Vault 환경 셋업
+
+FlowSet v3.0은 Obsidian vault를 세션 간 기억 저장소로 사용합니다.
+
+#### 1. Obsidian 설치 확인
+
+```bash
+# Obsidian 설치 확인 (프로세스 또는 실행 파일)
+obsidian_installed=false
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*)
+    [[ -d "$LOCALAPPDATA/Obsidian" || -d "$APPDATA/obsidian" ]] && obsidian_installed=true
+    ;;
+  Darwin*)
+    [[ -d "/Applications/Obsidian.app" ]] && obsidian_installed=true
+    ;;
+  Linux*)
+    command -v obsidian &>/dev/null && obsidian_installed=true
+    [[ -d "$HOME/.config/obsidian" ]] && obsidian_installed=true
+    ;;
+esac
+```
+
+미설치 시 안내:
+```
+Obsidian이 설치되어 있지 않습니다.
+
+FlowSet v3.0은 Obsidian vault로 세션 간 기억을 유지합니다.
+설치하면 이전 세션 맥락 자동 복원, 시맨틱 검색, 패턴 학습이 활성화됩니다.
+
+설치 방법:
+  https://obsidian.md/download
+
+설치 후 필요한 플러그인:
+  1. Smart Connections — 벡터 임베딩 + 시맨틱 검색
+  2. Local REST API — HTTP API (Claude Code 연동)
+
+지금 설치하시겠습니까? (Y/n)
+  Y → 브라우저에서 다운로드 페이지 열기
+  n → vault 없이 진행 (파일 기반 RAG만 사용)
+```
+
+#### 2. Vault 디렉토리 확인
+
+```bash
+VAULT_DIR="$HOME/.claude/knowledge"
+
+# vault 디렉토리 존재 확인
+if [[ ! -d "$VAULT_DIR" ]]; then
+  mkdir -p "$VAULT_DIR"
+  echo "vault 디렉토리 생성: $VAULT_DIR"
+  echo "Obsidian에서 이 폴더를 vault로 열어주세요."
+fi
+```
+
+#### 3. Local REST API 플러그인 확인
+
+```bash
+# REST API 응답 확인 (플러그인 활성화 여부)
+vault_api_ok=false
+VAULT_API_KEY=""
+
+# 기존 API key가 있으면 확인
+if [[ -f "$VAULT_DIR/.obsidian/plugins/obsidian-local-rest-api/data.json" ]]; then
+  VAULT_API_KEY=$(jq -r '.apiKey // empty' "$VAULT_DIR/.obsidian/plugins/obsidian-local-rest-api/data.json" 2>/dev/null)
+fi
+
+if [[ -n "$VAULT_API_KEY" ]]; then
+  response=$(curl -s -k --max-time 3 "https://localhost:27124/vault/" -H "Authorization: Bearer $VAULT_API_KEY" 2>/dev/null)
+  [[ -n "$response" ]] && vault_api_ok=true
+fi
+```
+
+미연결 시 안내:
+```
+Local REST API 플러그인이 응답하지 않습니다.
+
+확인 사항:
+  1. Obsidian이 실행 중인가? → Obsidian 앱 열기
+  2. Local REST API 플러그인 설치됨? → Settings > Community plugins > "Local REST API" 검색
+  3. 플러그인 활성화됨? → 토글 ON 확인
+  4. HTTPS 활성화됨? → 플러그인 설정에서 "Enable HTTPS" ON
+
+플러그인 설치: https://github.com/coddingtonbear/obsidian-local-rest-api
+
+설정 완료 후 다시 확인하시겠습니까? (Y/n)
+```
+
+#### 4. Smart Connections 플러그인 확인
+
+```bash
+if [[ -d "$VAULT_DIR/.obsidian/plugins/smart-connections" ]]; then
+  echo "Smart Connections 설치 확인"
+else
+  echo "Smart Connections 미설치"
+  echo "  Obsidian > Settings > Community plugins > 'Smart Connections' 검색 > Install > Enable"
+fi
+```
+
+#### 5. MCP 서버 등록
+
+```bash
+# obsidian-rest MCP 서버 등록 (이미 있으면 스킵)
+if ! claude mcp get obsidian-rest &>/dev/null; then
+  claude mcp add --scope user obsidian-rest -- npx -y mcp-obsidian "$VAULT_DIR"
+  echo "MCP 서버 등록: obsidian-rest"
+fi
+```
+
+#### 6. .flowsetrc에 vault 설정 기록
+
+```bash
+# .flowsetrc 업데이트
+if [[ "$vault_api_ok" == true ]]; then
+  # VAULT_ENABLED=true (기본값이므로 변경 불필요)
+  # VAULT_API_KEY 설정
+  sed -i "s|^VAULT_API_KEY=.*|VAULT_API_KEY=\"$VAULT_API_KEY\"|" .flowsetrc
+  sed -i "s|^VAULT_PROJECT_NAME=.*|VAULT_PROJECT_NAME=\"$PROJECT_NAME\"|" .flowsetrc
+
+  # vault에 프로젝트 폴더 초기화
+  curl -s -k --max-time 3 \
+    "https://localhost:27124/vault/${PROJECT_NAME}/state.md" \
+    -H "Authorization: Bearer $VAULT_API_KEY" \
+    -X PUT -H "Content-Type: text/markdown" \
+    -d "# ${PROJECT_NAME} State
+- Status: initialized
+- Updated: $(date '+%Y-%m-%d %H:%M:%S')" > /dev/null 2>&1
+
+  echo "vault 연동 완료: ${PROJECT_NAME}/"
+else
+  echo "vault 미연결 — 파일 기반 RAG로 진행"
+fi
+```
+
+#### 셋업 완료 후 요약
+
+```
+Obsidian Vault 상태:
+  Obsidian:           {설치됨/미설치}
+  Local REST API:     {연결됨/미연결}
+  Smart Connections:  {설치됨/미설치}
+  MCP obsidian-rest:  {등록됨/미등록}
+  Vault 경로:         ~/.claude/knowledge/
+  프로젝트 폴더:      ~/.claude/knowledge/{PROJECT_NAME}/
+```
+
 ### Step 4: Git Hooks 설치
 ```bash
 # commit-msg hook (커밋 메시지 형식 강제)
@@ -283,6 +429,8 @@ gh api -X PATCH "repos/{org}/{project-name}" -f allow_auto_merge=true
   flowset.sh              → 매 반복 후 규칙 준수 검증
 
 🔗 GitHub: https://github.com/{org}/{project-name}
+
+📓 Vault: {연결됨 — ~/.claude/knowledge/{project-name}/ | 미연결 — 파일 기반 RAG}
 
 📋 다음 단계: /wi:prd → /wi:env → /wi:start
 ```
