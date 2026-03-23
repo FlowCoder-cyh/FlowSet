@@ -80,20 +80,47 @@ if [[ -f ".flowset/scripts/verify-requirements.sh" && -f ".flowset/requirements.
   fi
 fi
 
-# 5. v3.0: Vault 상태 동기화 (비차단 — 정보 기록용)
+# 5. v3.0: Vault 세션 맥락 저장 (루프/대화형/팀 범용)
 if [[ -f ".flowsetrc" ]]; then
   source .flowsetrc 2>/dev/null || true
   if [[ "${VAULT_ENABLED:-false}" == "true" && -n "${VAULT_API_KEY:-}" ]]; then
-    # 변경 파일 요약을 vault에 기록
+    # vault-helpers.sh 로드
+    [[ -f ".flowset/scripts/vault-helpers.sh" ]] && source .flowset/scripts/vault-helpers.sh 2>/dev/null || true
+
+    # last_assistant_message에서 작업 요약 추출 (처음 500자)
+    last_msg=$(echo "$INPUT" | jq -r '.last_assistant_message // ""' 2>/dev/null || echo "")
+    summary=""
+    if [[ -n "$last_msg" ]]; then
+      summary=$(printf '%.500s' "$last_msg" | tr '\n' ' ' | tr '\r' ' ')
+    fi
+
+    # 변경 파일 요약
     change_summary=$(echo "$changed_files" | sed '/^$/d' | sort -u | head -20 | tr '\n' ', ')
-    curl -s -k --max-time 3 \
-      "${VAULT_URL:-https://localhost:27124}/vault/${VAULT_PROJECT_NAME:-}/sessions/$(date '+%Y%m%d-%H%M%S').md" \
-      -H "Authorization: Bearer ${VAULT_API_KEY}" \
-      -X PUT -H "Content-Type: text/markdown" \
-      -d "# Session $(date '+%Y-%m-%d %H:%M')
-- Branch: $(git branch --show-current 2>/dev/null || echo unknown)
-- Changed: ${change_summary:-none}
-- Issues: ${#issues[@]}" > /dev/null 2>&1 || true
+    change_summary="${change_summary%,}"
+
+    # TEAM_NAME 해소
+    local_team=""
+    if [[ -f ".flowset/scripts/resolve-team.sh" ]]; then
+      source ".flowset/scripts/resolve-team.sh" 2>/dev/null || true
+      resolve_team_name "$INPUT" 2>/dev/null
+      local_team="${RESOLVED_TEAM_NAME:-}"
+    fi
+
+    # 모드 감지
+    mode=$(vault_detect_mode 2>/dev/null || echo "interactive")
+
+    # A. 세션 로그 저장 (전 모드 공통)
+    vault_save_session_log "$summary" "${change_summary:-none}" "${#issues[@]}" 2>/dev/null || true
+
+    # B. state.md 업데이트 (대화형/팀만 — 루프는 flowset.sh가 관리)
+    if [[ "$mode" != "loop" ]]; then
+      vault_sync_state "idle" "" "" "" "" "$summary" "$local_team" 2>/dev/null || true
+    fi
+
+    # C. 팀 state 업데이트 (팀 모드만)
+    if [[ -n "$local_team" ]]; then
+      vault_sync_team_state "$local_team" "$summary" 2>/dev/null || true
+    fi
   fi
 fi
 

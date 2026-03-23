@@ -100,29 +100,170 @@ vault_init_project() {
   fi
 }
 
-# vault state.md 업데이트 (루프 상태 동기화)
-# $1: status (running/completed/crashed)
-# $2: loop_count
-# $3: max_iterations
-# $4: completed_count
-# $5: total_cost_usd
+# 실행 모드 감지: loop | team | interactive
+# loop_state.json이 30초 이내 갱신 → loop
+# TEAM_NAME 존재 → team
+# 둘 다 아님 → interactive
+vault_detect_mode() {
+  if [[ -f ".flowset/loop_state.json" ]]; then
+    local now state_mtime age
+    now=$(date +%s)
+    if stat --version &>/dev/null 2>&1; then
+      state_mtime=$(stat -c %Y ".flowset/loop_state.json" 2>/dev/null || echo 0)
+    else
+      state_mtime=$(stat -f %m ".flowset/loop_state.json" 2>/dev/null || echo 0)
+    fi
+    age=$(( now - state_mtime ))
+    if [[ $age -le 30 ]]; then
+      echo "loop"
+      return 0
+    fi
+  fi
+
+  if [[ -n "${TEAM_NAME:-}" ]]; then
+    echo "team"
+    return 0
+  fi
+  if [[ -f ".flowset/scripts/resolve-team.sh" ]]; then
+    source ".flowset/scripts/resolve-team.sh" 2>/dev/null || true
+    resolve_team_name "" 2>/dev/null
+    if [[ -n "${RESOLVED_TEAM_NAME:-}" ]]; then
+      echo "team"
+      return 0
+    fi
+  fi
+
+  echo "interactive"
+}
+
+# vault state.md 범용 업데이트
+# 루프: vault_sync_state "running" "$loop_count" "$MAX_ITERATIONS" "$completed" "$cost"
+# 대화형/팀: vault_sync_state "idle" "" "" "" "" "$summary" "$team_name"
+# 하위 호환: 기존 5인자 호출 그대로 동작 (6-7번째는 빈 문자열)
 vault_sync_state() {
   [[ "${VAULT_ENABLED}" != "true" ]] && return 0
   [[ -z "${VAULT_PROJECT_NAME}" ]] && return 0
 
-  local status="${1:-running}"
-  local loop_count="${2:-0}"
-  local max_iter="${3:-0}"
-  local completed="${4:-0}"
-  local cost="${5:-0}"
+  local status="${1:-active}"
+  local loop_count="${2:-}"
+  local max_iter="${3:-}"
+  local completed="${4:-}"
+  local cost="${5:-}"
+  local summary="${6:-}"
+  local team_name="${7:-}"
 
-  vault_write "${VAULT_PROJECT_NAME}/state.md" "# ${VAULT_PROJECT_NAME} Loop State
+  local branch
+  branch=$(git branch --show-current 2>/dev/null || echo 'unknown')
+  local changed_files
+  changed_files=$(git diff --name-only HEAD 2>/dev/null | head -10 | tr '\n' ', ')
+  changed_files="${changed_files%,}"
+  local timestamp
+  timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+
+  local content="# ${VAULT_PROJECT_NAME} State
 - Status: ${status}
+- Branch: ${branch}
+- Updated: ${timestamp}"
+
+  # 루프 모드 (loop_count가 있으면)
+  if [[ -n "$loop_count" ]]; then
+    content+="
+- Mode: loop
 - Iteration: ${loop_count} / ${max_iter}
 - Completed WIs: ${completed}
-- Cost: \$${cost}
+- Cost: \$${cost}"
+  else
+    local mode="interactive"
+    [[ -n "$team_name" ]] && mode="team"
+    content+="
+- Mode: ${mode}"
+  fi
+
+  [[ -n "$team_name" ]] && content+="
+- Team: ${team_name}"
+
+  [[ -n "$changed_files" ]] && content+="
+- Recent changes: ${changed_files}"
+
+  if [[ -n "$summary" ]]; then
+    content+="
+
+## Last Session Summary
+${summary}"
+  fi
+
+  vault_write "${VAULT_PROJECT_NAME}/state.md" "${content}"
+}
+
+# 세션 작업 로그를 vault sessions/ 에 저장
+# $1: 작업 요약 (last_assistant_message 처음 500자)
+# $2: 변경 파일 (optional)
+# $3: 이슈 수 (optional)
+vault_save_session_log() {
+  [[ "${VAULT_ENABLED}" != "true" ]] && return 0
+  [[ -z "${VAULT_PROJECT_NAME}" ]] && return 0
+
+  local summary="${1:-}"
+  local changed="${2:-none}"
+  local issue_count="${3:-0}"
+  local branch
+  branch=$(git branch --show-current 2>/dev/null || echo unknown)
+  local timestamp
+  timestamp=$(date '+%Y%m%d-%H%M%S')
+
+  local team_line=""
+  [[ -n "${TEAM_NAME:-}" ]] && team_line="
+- Team: ${TEAM_NAME}"
+
+  vault_write "${VAULT_PROJECT_NAME}/sessions/${timestamp}.md" "# Session ${timestamp}
+- Branch: ${branch}
+- Changed: ${changed}
+- Issues: ${issue_count}${team_line}
+
+## Summary
+${summary}"
+}
+
+# 최근 세션 로그 1건 읽기
+vault_read_latest_session() {
+  [[ "${VAULT_ENABLED}" != "true" ]] && return 0
+  [[ -z "${VAULT_PROJECT_NAME}" ]] && return 0
+
+  local results
+  results=$(vault_search "${VAULT_PROJECT_NAME} session" 2>/dev/null)
+  if [[ -n "$results" && "$results" != "[]" ]]; then
+    local latest_file
+    latest_file=$(echo "$results" | jq -r '[.[] | select(.filename | test("sessions/"))] | .[0].filename // empty' 2>/dev/null)
+    if [[ -n "$latest_file" ]]; then
+      vault_read "$latest_file"
+    fi
+  fi
+}
+
+# 팀별 state 업데이트
+vault_sync_team_state() {
+  [[ "${VAULT_ENABLED}" != "true" ]] && return 0
+  [[ -z "${VAULT_PROJECT_NAME}" ]] && return 0
+  local team_name="${1:?vault_sync_team_state: team_name required}"
+  local summary="${2:-}"
+
+  local branch
+  branch=$(git branch --show-current 2>/dev/null || echo 'unknown')
+
+  vault_write "${VAULT_PROJECT_NAME}/teams/${team_name}.md" "# ${team_name} Team State
 - Updated: $(date '+%Y-%m-%d %H:%M:%S')
-- Branch: $(git branch --show-current 2>/dev/null || echo 'unknown')"
+- Branch: ${branch}
+
+## Last Activity
+${summary}"
+}
+
+# 팀별 state 읽기
+vault_read_team_state() {
+  [[ "${VAULT_ENABLED}" != "true" ]] && return 0
+  [[ -z "${VAULT_PROJECT_NAME}" ]] && return 0
+  local team_name="${1:?vault_read_team_state: team_name required}"
+  vault_read "${VAULT_PROJECT_NAME}/teams/${team_name}.md"
 }
 
 # vault에 패턴/이슈 기록

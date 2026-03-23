@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# session-start-vault.sh — SessionStart hook
-# 세션 시작/resume/clear/compact 시 vault state.md + 관련 맥락 주입
+# session-start-vault.sh — SessionStart hook (v3.0 범용)
+# 세션 시작/resume/clear/compact 시 vault 맥락 주입
+# 루프/대화형/팀 모드 모두에서 동작
 # VAULT_ENABLED=false이면 무동작
 
 export LANG=en_US.UTF-8
@@ -21,53 +22,96 @@ if [[ "${VAULT_ENABLED:-false}" != "true" || -z "${VAULT_API_KEY:-}" ]]; then
 fi
 
 # vault 연결 확인 (타임아웃 3초)
+VAULT_URL="${VAULT_URL:-https://localhost:27124}"
 vault_response=$(curl -s -k --max-time 3 \
-  "${VAULT_URL:-https://localhost:27124}/vault/" \
+  "${VAULT_URL}/vault/" \
   -H "Authorization: Bearer ${VAULT_API_KEY}" 2>/dev/null)
 
 if [[ -z "$vault_response" ]]; then
   exit 0
 fi
 
-# vault에서 state.md 읽기
-state_content=""
-if [[ -n "${VAULT_PROJECT_NAME:-}" ]]; then
-  state_content=$(curl -s -k --max-time 3 \
-    "${VAULT_URL}/vault/${VAULT_PROJECT_NAME}/state.md" \
-    -H "Authorization: Bearer ${VAULT_API_KEY}" 2>/dev/null)
-fi
+# 인라인 vault 헬퍼 (vault-helpers.sh와 독립 — hook은 독립 프로세스)
+_vread() {
+  curl -s -k --max-time 3 \
+    "${VAULT_URL}/vault/${1}" \
+    -H "Authorization: Bearer ${VAULT_API_KEY}" 2>/dev/null
+}
+_vsearch() {
+  local encoded
+  encoded=$(printf '%s' "$1" | jq -sRr @uri 2>/dev/null || printf '%s' "$1" | sed 's/ /%20/g')
+  curl -s -k --max-time 3 \
+    "${VAULT_URL}/search/simple/?query=${encoded}" \
+    -H "Authorization: Bearer ${VAULT_API_KEY}" \
+    -X POST 2>/dev/null
+}
 
-# 컨텍스트 조립
 context=""
 
-if [[ -n "$state_content" ]]; then
-  context+="[VAULT STATE — 프로젝트 현재 상태 (source: ${SOURCE})]
+# --- 1. state.md 읽기 (범용 포맷) ---
+if [[ -n "${VAULT_PROJECT_NAME:-}" ]]; then
+  state_content=$(_vread "${VAULT_PROJECT_NAME}/state.md")
+  if [[ -n "$state_content" && "$state_content" != *'"errorCode"'* ]]; then
+    context+="[VAULT STATE — 프로젝트 현재 상태 (source: ${SOURCE})]
 ${state_content}
 "
+  fi
 fi
 
-# compact 후 재주입인 경우, 추가 맥락 검색
-if [[ "$SOURCE" == "compact" && -n "${VAULT_PROJECT_NAME:-}" ]]; then
-  # 최근 이슈 확인
-  recent_issues=$(curl -s -k --max-time 3 \
-    "${VAULT_URL}/search/simple/?query=${VAULT_PROJECT_NAME}%20issue" \
-    -H "Authorization: Bearer ${VAULT_API_KEY}" \
-    -X POST 2>/dev/null)
+# --- 2. 최근 세션 로그 1건 읽기 ---
+if [[ -n "${VAULT_PROJECT_NAME:-}" ]]; then
+  session_results=$(_vsearch "${VAULT_PROJECT_NAME} session")
+  if [[ -n "$session_results" && "$session_results" != "[]" ]]; then
+    latest_file=$(echo "$session_results" | jq -r '[.[] | select(.filename | test("sessions/"))] | .[0].filename // empty' 2>/dev/null)
+    if [[ -n "$latest_file" ]]; then
+      session_content=$(_vread "$latest_file" | head -30)
+      if [[ -n "$session_content" && "$session_content" != *'"errorCode"'* ]]; then
+        context+="
+[VAULT LAST SESSION — 이전 세션 작업 내역]
+${session_content}
+"
+      fi
+    fi
+  fi
+fi
 
-  if [[ -n "$recent_issues" && "$recent_issues" != "[]" ]]; then
-    issue_files=$(echo "$recent_issues" | jq -r '.[0:2] | .[].filename' 2>/dev/null)
-    if [[ -n "$issue_files" ]]; then
-      context+="
+# --- 3. 팀 모드: 팀별 state 로드 ---
+team_name=""
+if [[ -n "${TEAM_NAME:-}" ]]; then
+  team_name="$TEAM_NAME"
+elif [[ -f ".flowset/scripts/resolve-team.sh" ]]; then
+  source ".flowset/scripts/resolve-team.sh" 2>/dev/null || true
+  resolve_team_name "$INPUT" 2>/dev/null
+  team_name="${RESOLVED_TEAM_NAME:-}"
+fi
+
+if [[ -n "$team_name" && -n "${VAULT_PROJECT_NAME:-}" ]]; then
+  team_content=$(_vread "${VAULT_PROJECT_NAME}/teams/${team_name}.md")
+  if [[ -n "$team_content" && "$team_content" != *'"errorCode"'* ]]; then
+    context+="
+[VAULT TEAM STATE — ${team_name} 팀 상태]
+${team_content}
+"
+  fi
+fi
+
+# --- 4. compact/resume 시 추가 맥락 (알려진 이슈) ---
+if [[ "$SOURCE" == "compact" || "$SOURCE" == "resume" ]]; then
+  if [[ -n "${VAULT_PROJECT_NAME:-}" ]]; then
+    recent_issues=$(_vsearch "${VAULT_PROJECT_NAME} issue")
+    if [[ -n "$recent_issues" && "$recent_issues" != "[]" ]]; then
+      issue_files=$(echo "$recent_issues" | jq -r '.[0:2] | .[].filename' 2>/dev/null)
+      if [[ -n "$issue_files" ]]; then
+        context+="
 [VAULT ISSUES — 알려진 이슈]"
-      while IFS= read -r vf; do
-        [[ -z "$vf" ]] && continue
-        vc=$(curl -s -k --max-time 2 \
-          "${VAULT_URL}/vault/${vf}" \
-          -H "Authorization: Bearer ${VAULT_API_KEY}" 2>/dev/null | head -20)
-        [[ -n "$vc" ]] && context+="
+        while IFS= read -r vf; do
+          [[ -z "$vf" ]] && continue
+          vc=$(_vread "$vf" | head -20)
+          [[ -n "$vc" && "$vc" != *'"errorCode"'* ]] && context+="
 --- ${vf} ---
 ${vc}"
-      done <<< "$issue_files"
+        done <<< "$issue_files"
+      fi
     fi
   fi
 fi
@@ -77,5 +121,5 @@ if [[ -z "$context" ]]; then
   exit 0
 fi
 
-# additionalContext로 반환 (공식 스펙: SessionStart stdout JSON)
+# additionalContext로 반환
 jq -n --arg ctx "$context" '{"additionalContext": $ctx}'
