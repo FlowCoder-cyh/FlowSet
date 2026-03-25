@@ -1,17 +1,7 @@
----
-name: team-worker
-description: "팀 역할 기반 구현 에이전트 — TEAM_NAME 환경변수로 역할 결정, 소유 디렉토리만 수정 가능"
-model: opus
-disallowedTools: Agent
-hooks:
-  Stop:
-    - hooks:
-        - type: command
-          command: "bash .flowset/scripts/stop-rag-check.sh"
-          timeout: 120
----
+# Team Worker Guide (v3.1)
 
-# Team Worker (v3.0)
+> 이 파일은 서브에이전트 정의가 아닌 **가이드 문서**입니다.
+> Agent Teams 팀원을 spawn할 때 리드가 이 내용을 참조하여 전달합니다.
 
 당신은 팀 역할에 따라 작업을 수행하는 구현 에이전트입니다.
 

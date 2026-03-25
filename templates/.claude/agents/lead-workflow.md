@@ -77,7 +77,7 @@ disallowedTools: Edit, Write
 - character 팀: WI-001, WI-002 담당. 소유 디렉토리: production/characters/**, production/prompts/characters/**
 - visual 팀: WI-003 담당. 소유 디렉토리: production/episodes/**, production/prompts/scenes/**
 
-각 팀원은 .claude/agents/team-worker.md를 읽고 초기화.
+각 팀원은 .flowset/guides/team-worker-guide.md를 읽고 초기화.
 팀원은 세션 내내 유지되며, 태스크를 공유 리스트에서 claim하여 작업.
 ```
 
@@ -90,7 +90,7 @@ disallowedTools: Edit, Write
 | 컨텍스트 | 매번 새로 시작 | 이전 작업 맥락 누적 |
 
 **팀원에게 전달할 컨텍스트:**
-- `.claude/agents/team-worker.md` — 역할 + 초기화 절차
+- `.flowset/guides/team-worker-guide.md` — 역할 + 초기화 절차
 - `.claude/rules/team-roles.md` — 팀 역할 정의
 - `.flowset/contracts/sprint-{NNN}.md` — 해당 WI 스프린트 계약
 - `.flowset/ownership.json` — 소유 디렉토리 매핑
