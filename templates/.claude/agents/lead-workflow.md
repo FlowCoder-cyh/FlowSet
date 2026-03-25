@@ -70,16 +70,20 @@ disallowedTools: Edit, Write
 
 **서브에이전트(일회성)가 아닌 Agent Teams(상주 팀원)로 생성합니다.**
 
-자연어로 팀 생성을 요청합니다:
+자연어로 팀 생성을 요청합니다. **각 팀원에게 팀 등록 명령을 반드시 포함**:
 ```
 에이전트 팀을 만들어줘.
 팀원 구성:
-- character 팀: WI-001, WI-002 담당. 소유 디렉토리: production/characters/**, production/prompts/characters/**
-- visual 팀: WI-003 담당. 소유 디렉토리: production/episodes/**, production/prompts/scenes/**
+- {팀명} 팀: {WI 목록} 담당. 소유 디렉토리: {ownership.json 참조}
 
-각 팀원은 .flowset/guides/team-worker-guide.md를 읽고 초기화.
+각 팀원은 시작할 때 반드시 아래 2가지를 먼저 실행:
+1. 팀 등록: mkdir -p .flowset/teams && echo "{팀명}" > .flowset/teams/$(echo $$).team
+2. .flowset/guides/team-worker-guide.md 읽고 초기화
+
 팀원은 세션 내내 유지되며, 태스크를 공유 리스트에서 claim하여 작업.
 ```
+
+**팀 등록이 필요한 이유**: `.flowset/teams/{session}.team` 파일이 있어야 Stop hook이 팀명을 식별하고 vault `teams/{팀명}.md`에 팀별 상태를 기록합니다. 등록 없으면 팀별 vault 기록이 안 됩니다.
 
 **Agent Teams vs 서브에이전트 차이:**
 | | 서브에이전트 | Agent Teams (이 방식) |
