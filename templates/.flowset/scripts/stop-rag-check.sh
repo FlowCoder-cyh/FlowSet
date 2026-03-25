@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Stop hook: RAG + E2E + requirements + 검증 에이전트
+# Stop hook: RAG + E2E + requirements + 검증 에이전트 + vault 동기화 (v3.0)
 # .claude/settings.json의 Stop hook으로 등록됨
 # 문제 발견 시 decision:"block" → Claude가 수정 작업 계속
+
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
 
 # stdin에서 hook 입력 읽기 (stop_hook_active 확인)
 INPUT=$(cat 2>/dev/null || true)
@@ -59,20 +62,64 @@ if [[ -n "$e2e_files" ]]; then
 fi
 
 # 3. requirements.md 수정 감지
-if [[ -f ".ralph/requirements.md" ]]; then
-  if echo "$changed_files" | grep -qF '.ralph/requirements.md' 2>/dev/null; then
-    issues+=("requirements.md 수정 감지 — 사용자 원본이며 수정 금지. git checkout -- .ralph/requirements.md 실행")
+if [[ -f ".flowset/requirements.md" ]]; then
+  if echo "$changed_files" | grep -qF '.flowset/requirements.md' 2>/dev/null; then
+    issues+=("requirements.md 수정 감지 — 사용자 원본이며 수정 금지. git checkout -- .flowset/requirements.md 실행")
   fi
 fi
 
 # 4. 검증 에이전트 트리거 (소스 3파일+ 변경 시)
-if [[ -f ".ralph/scripts/verify-requirements.sh" && -f ".ralph/requirements.md" ]]; then
+if [[ -f ".flowset/scripts/verify-requirements.sh" && -f ".flowset/requirements.md" ]]; then
   src_count=$(echo "$changed_files" | grep -cE '\.(ts|tsx|js|jsx|py|go|rs)$' 2>/dev/null || echo "0")
   if [[ "$src_count" -ge 3 ]]; then
-    verify_output=$(bash .ralph/scripts/verify-requirements.sh 2>&1 || true)
+    verify_output=$(bash .flowset/scripts/verify-requirements.sh 2>&1 || true)
     verify_exit=$?
     if [[ $verify_exit -eq 2 ]]; then
       issues+=("검증 에이전트: 요구사항 누락 감지 — $verify_output")
+    fi
+  fi
+fi
+
+# 5. v3.0: Vault 세션 맥락 저장 (루프/대화형/팀 범용)
+if [[ -f ".flowsetrc" ]]; then
+  source .flowsetrc 2>/dev/null || true
+  if [[ "${VAULT_ENABLED:-false}" == "true" && -n "${VAULT_API_KEY:-}" ]]; then
+    # vault-helpers.sh 로드
+    [[ -f ".flowset/scripts/vault-helpers.sh" ]] && source .flowset/scripts/vault-helpers.sh 2>/dev/null || true
+
+    # last_assistant_message에서 작업 요약 추출 (처음 500자)
+    last_msg=$(echo "$INPUT" | jq -r '.last_assistant_message // ""' 2>/dev/null || echo "")
+    summary=""
+    if [[ -n "$last_msg" ]]; then
+      summary=$(printf '%.500s' "$last_msg" | tr '\n' ' ' | tr '\r' ' ')
+    fi
+
+    # 변경 파일 요약
+    change_summary=$(echo "$changed_files" | sed '/^$/d' | sort -u | head -20 | tr '\n' ', ')
+    change_summary="${change_summary%,}"
+
+    # TEAM_NAME 해소
+    local_team=""
+    if [[ -f ".flowset/scripts/resolve-team.sh" ]]; then
+      source ".flowset/scripts/resolve-team.sh" 2>/dev/null || true
+      resolve_team_name "$INPUT" 2>/dev/null
+      local_team="${RESOLVED_TEAM_NAME:-}"
+    fi
+
+    # 모드 감지
+    mode=$(vault_detect_mode 2>/dev/null || echo "interactive")
+
+    # A. 세션 로그 저장 (전 모드 공통)
+    vault_save_session_log "$summary" "${change_summary:-none}" "${#issues[@]}" 2>/dev/null || true
+
+    # B. state.md 업데이트 (대화형/팀만 — 루프는 flowset.sh가 관리)
+    if [[ "$mode" != "loop" ]]; then
+      vault_sync_state "idle" "" "" "" "" "$summary" "$local_team" 2>/dev/null || true
+    fi
+
+    # C. 팀 state 업데이트 (팀 모드만)
+    if [[ -n "$local_team" ]]; then
+      vault_sync_team_state "$local_team" "$summary" 2>/dev/null || true
     fi
   fi
 fi

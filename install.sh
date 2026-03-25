@@ -143,13 +143,21 @@ echo "  ✅ git i18n.logOutputEncoding=utf-8"
 echo "  ✅ git gui.encoding=utf-8"
 
 #--- 5. 템플릿 확인 ---
-echo "[5/5] 템플릿 확인..."
+echo "[5/6] 템플릿 확인..."
 if [[ -d "$SCRIPT_DIR/templates" ]]; then
-  echo "  ✅ templates/ 존재 (wi:init에서 참조)"
+  echo "  templates/ 존재 (wi:init에서 참조)"
 else
   echo "  ERROR: templates/ 디렉토리를 찾을 수 없습니다."
   exit 1
 fi
+
+#--- 6. 템플릿을 ~/.claude/templates/flowset/에 복사 ---
+echo "[6/6] 템플릿 설치..."
+TEMPLATE_DST="$CLAUDE_DIR/templates/flowset"
+mkdir -p "$TEMPLATE_DST"
+cp -r "$SCRIPT_DIR/templates/"* "$TEMPLATE_DST/" 2>/dev/null || true
+cp -r "$SCRIPT_DIR/templates/".* "$TEMPLATE_DST/" 2>/dev/null || true
+echo "  $TEMPLATE_DST/"
 
 echo ""
 echo "=== 설치 완료 ==="
