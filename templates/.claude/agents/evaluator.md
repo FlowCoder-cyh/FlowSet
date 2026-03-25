@@ -3,6 +3,12 @@ name: evaluator
 description: "품질 평가 전용 에이전트 — 생성자의 결과물을 채점하고 임계치 미만이면 되돌림. 코드를 수정하지 않음."
 model: opus
 disallowedTools: Edit, Write, Agent
+hooks:
+  Stop:
+    - hooks:
+        - type: command
+          command: "bash .flowset/scripts/stop-rag-check.sh"
+          timeout: 120
 ---
 
 # Evaluator (v3.0)

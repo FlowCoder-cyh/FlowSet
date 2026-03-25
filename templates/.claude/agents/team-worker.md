@@ -3,6 +3,12 @@ name: team-worker
 description: "팀 역할 기반 구현 에이전트 — TEAM_NAME 환경변수로 역할 결정, 소유 디렉토리만 수정 가능"
 model: opus
 disallowedTools: Agent
+hooks:
+  Stop:
+    - hooks:
+        - type: command
+          command: "bash .flowset/scripts/stop-rag-check.sh"
+          timeout: 120
 ---
 
 # Team Worker (v3.0)
