@@ -150,11 +150,14 @@ cp "$TEMPLATE_DIR/.flowset/contracts/sprint-template.md" ./.flowset/contracts/sp
 cp "$TEMPLATE_DIR/.flowset/scripts/task-completed-eval.sh" ./.flowset/scripts/task-completed-eval.sh
 mkdir -p ./.flowset/eval-results
 
-# v3.0: Agent Teams 템플릿 (선택적 — AGENT_TEAMS 활성화 시 사용)
+# v3.0: Agent Teams (서브에이전트 정의: evaluator만. team-worker는 가이드 문서)
 if [[ -d "$TEMPLATE_DIR/.claude/agents" ]]; then
   mkdir -p ./.claude/agents
   cp "$TEMPLATE_DIR/.claude/agents/"*.md ./.claude/agents/ 2>/dev/null || true
 fi
+# 팀원 가이드 (Agent Teams 팀원 초기화 참조 문서)
+mkdir -p ./.flowset/guides
+cp "$TEMPLATE_DIR/.flowset/guides/"*.md ./.flowset/guides/ 2>/dev/null || true
 
 chmod +x flowset.sh .flowset/hooks/* .flowset/scripts/*.sh 2>/dev/null || true
 ```
