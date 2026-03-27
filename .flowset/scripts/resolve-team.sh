@@ -38,7 +38,7 @@ resolve_team_name() {
       fi
       # 수정 시간 비교 (가장 최근 파일 선택)
       local mtime
-      if stat --version &>/dev/null 2>&1; then
+      if stat --version &>/dev/null; then
         mtime=$(stat -c %Y "$f" 2>/dev/null || echo 0)
       else
         mtime=$(stat -f %m "$f" 2>/dev/null || echo 0)

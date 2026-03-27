@@ -13,9 +13,9 @@
 - **팀 등록 (hook 연동 필수)**:
   ```bash
   mkdir -p .flowset/teams
-  echo "registered" > .flowset/teams/{TEAM_NAME}.team
+  echo "{TEAM_NAME}" > .flowset/teams/{TEAM_NAME}.team
   ```
-  파일명이 팀명. Stop hook이 이 파일로 팀을 식별하여 vault teams/{팀명}.md에 기록합니다.
+  파일명과 내용 모두 팀명. resolve-team.sh가 파일 내용으로 팀을 식별합니다.
 
 ### 2. 스프린트 계약 읽기 (필수)
 - `.flowset/contracts/sprint-{할당된 WI 번호}.md` 읽기
