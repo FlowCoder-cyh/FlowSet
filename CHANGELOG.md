@@ -1,5 +1,42 @@
 # Changelog
 
+## [v3.4.0] - 2026-04-03
+
+### 토큰 최적화 — vault 누적 방지 + rules 경량화
+- `vault-helpers.sh`: state.md Last Activity를 응답 원문 300자 → `sessions/{날짜}-daily.md 참조` 포인터로 변경
+- `session-start-vault.sh`: 세션 로그 자동 주입 제거 (토큰 누적 방지, 필요 시 on-demand 읽기)
+- `flowset-operations.md`: rules → guides 분리 (6.1KB → 1.0KB, 상세는 `flowset-operations-guide.md`)
+- `flowset-operations-guide.md`: v3.0 기능 개요, completed_wis.txt SSOT, 루프 실행, E2E 테스트 품질 기준 (코드 예시 포함)
+- PostCompact hook 추가 (autoCompact 후 vault 컨텍스트 복원)
+- 글로벌 `inject-knowledge.sh` 레거시 제거 → 프로젝트별 hook 이관
+- `vibe-extras` 서드파티 플러그인 제거 (스킬 8개 + 에이전트 3개 매 메시지 로드 제거)
+- ComfyUI MCP 글로벌 → 프로젝트별 설치로 전환
+
+### transcript 기반 vault 저장 (v3.4 초기)
+- `stop-vault-sync.sh`: transcript_path에서 커밋/PR/도구 호출 수 기계적 추출
+- `vault-helpers.sh`: `vault_extract_transcript()`, `vault_build_transcript_summary()`, `vault_build_state_content()` 추가
+- state.md: 구조화된 Commits/PRs/Changed Files 섹션
+- daily.md: 세션별 branch + commits + tool calls 요약
+- rules에서 memory 파일 5개 제거 (mem-lessons, mem-project, mem-reference → auto memory로 이관)
+
+## [v3.3.0] - 2026-04-02
+
+### evaluator 채점 정밀화 (8.8 → 9.0+)
+- `evaluator.md`: few-shot 캘리브레이션 예시 추가, 안티패턴 감점 항목 세분화
+- 리드 오인식 버그 수정: 소유권 hook이 리드를 팀원으로 오판하는 문제 해결
+- `check-ownership.sh`: 리드/evaluator 역할 식별 로직 보강
+
+### 팀 관련 수정
+- `resolve-team.sh`: PID 필터링 + 빈 파일 skip + mtime 기반 최신 등록 우선
+- 팀 등록 키를 PID → 팀명으로 변경 (구조적 결함 수정)
+- `lead-workflow.md`: TeamCreate → Agent(team_name) 순서 명시, 팀 등록 명령 필수 포함
+
+### 세션 로그 폭증 방지
+- `vault_save_daily_session_log()`: 하루 1파일에 append (세션별 파일 생성 → 일별 통합)
+
+### 템플릿 감사 12건 수정
+- lead-workflow, evaluator, team-worker 간 참조 정합성 교정
+
 ## [v3.0.0] - 2026-03-23
 
 ### Obsidian Vault 통합

@@ -177,23 +177,24 @@ FlowSet/
     │   │   ├── data-flow.md       # SSOT 데이터 흐름 계약
     │   │   └── sprint-template.md # 스프린트 계약 템플릿 (수용 기준 + 검증 방법)
     │   ├── guides/
-    │   │   └── team-worker-guide.md # Agent Teams 팀원 초기화 가이드
+    │   │   ├── team-worker-guide.md          # Agent Teams 팀원 초기화 가이드
+    │   │   └── flowset-operations-guide.md   # FlowSet 운영 상세 가이드 (E2E 품질 기준 등)
     │   ├── ownership.json # 팀별 소유 디렉토리 매핑
     │   ├── tech-debt.md   # 기술부채 등록 (P0/P1/P2)
     │   ├── hooks/      # Git hooks (commit-msg + 필수 스크립트 검증, pre-push)
-    │   └── scripts/    # vault-helpers, session-start-vault, stop-rag-check, check-ownership, check-cross-team-impact, notify-contract-change, resolve-team, task-completed-eval, verify-requirements, enqueue-pr, launch-loop, rollback
+    │   └── scripts/    # vault-helpers, session-start-vault, stop-vault-sync, stop-rag-check, check-ownership, check-cross-team-impact, notify-contract-change, resolve-team, task-completed-eval, verify-requirements, enqueue-pr, launch-loop, rollback
     ├── .claude/
     │   ├── agents/
     │   │   ├── lead-workflow.md  # 리드 6단계 (TeamCreate→Agent Teams→evaluator→정리)
     │   │   └── evaluator.md     # 평가자 (채점 기반, few-shot, 안티패턴 감점)
-    │   ├── rules/      # 운영 규칙 + 팀 역할 정의
-    │   └── settings.json # SessionStart + PreToolUse + PostToolUse + TaskCompleted + Stop hook
+    │   ├── rules/      # 핵심 운영 규칙 (경량화, 상세는 guides/ 참조)
+    │   └── settings.json # SessionStart + PostCompact + PreToolUse + PostToolUse + TaskCompleted + Stop hook
     ├── .github/
     │   └── workflows/  # ci.yml, commit-check.yml, e2e.yml
     └── .flowsetrc        # 루프 설정 (+ vault 연동 [v3.0])
 ```
 
-### FlowSet 동작 원리 (v3.0)
+### FlowSet 동작 원리 (v3.4)
 
 ```
 bash flowset.sh
@@ -231,7 +232,7 @@ bash flowset.sh
 - **채점 기반 평가**: 0~10점, 4대 기준(기능/품질/테스트/계약 or 디자인/독창성/기술/정확성), few-shot 캘리브레이션, 안티패턴 감점
 - **Agent Teams 상주 팀원**: TeamCreate → Agent(team_name)로 생성. 기존 팀원 재사용 필수, 중복 생성 금지.
 - **소유권 hook 강제**: 팀별 디렉토리 제한 (PreToolUse), 계약/스키마 변경 차단 (cross-team)
-- **vault 세션 연속성**: Obsidian vault에 state + 일별 세션 로그 + 팀 상태 자동 기록. SessionStart에서 자동 주입.
+- **vault 세션 연속성**: Obsidian vault에 state + 일별 세션 로그 + 팀 상태 자동 기록. SessionStart에서 state.md 포인터만 주입 (v3.4: 토큰 누적 방지, 상세는 on-demand 읽기).
 - **머지 대기**: PR 머지 완료까지 대기 후 다음 WI (stale base 방지)
 - **TDD 강제**: 테스트 먼저 작성 → 구현
 - **RAG 강제**: Stop hook + validate로 자동 감지 + 업데이트 강제
