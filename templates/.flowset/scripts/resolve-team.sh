@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # resolve-team.sh — TEAM_NAME 해소 유틸리티
 # hook에서 source하여 사용
+
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+
 # 1순위: TEAM_NAME 환경변수 (Agent Teams 세션에서 직접 설정 시)
 # 2순위: .flowset/teams/{이름}.team 파일 (팀명 기반 등록)
 # 둘 다 없으면 빈 문자열 (solo 모드)

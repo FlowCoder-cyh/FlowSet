@@ -130,7 +130,8 @@ cp "$TEMPLATE_DIR/.claude/rules/team-roles.md" ./.claude/rules/team-roles.md 2>/
 # .claude/settings.json (PreToolUse 소유권 hook + Stop hook)
 cp "$TEMPLATE_DIR/.claude/settings.json" ./.claude/settings.json
 
-# Stop hook 스크립트
+# Stop hook 스크립트 (v3.4: stop-vault-sync.sh가 메인)
+cp "$TEMPLATE_DIR/.flowset/scripts/stop-vault-sync.sh" ./.flowset/scripts/stop-vault-sync.sh
 cp "$TEMPLATE_DIR/.flowset/scripts/stop-rag-check.sh" ./.flowset/scripts/stop-rag-check.sh
 cp "$TEMPLATE_DIR/.flowset/scripts/session-start-vault.sh" ./.flowset/scripts/session-start-vault.sh
 cp "$TEMPLATE_DIR/.flowset/scripts/notify-contract-change.sh" ./.flowset/scripts/notify-contract-change.sh

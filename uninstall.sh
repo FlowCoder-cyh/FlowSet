@@ -1,8 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+
+# Windows Git Bash / MSYS2 UTF-8 설정
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) chcp.com 65001 > /dev/null 2>&1 || true ;;
+esac
+
 #==============================
 # WI System Uninstaller
+#
+# 사용법: bash uninstall.sh [--all]
+#   --all  템플릿까지 포함하여 완전 삭제
 #
 # 환경변수:
 #   CLAUDE_CONFIG_DIR  Claude Code 설정 디렉토리 (기본: ~/.claude)
@@ -58,6 +69,13 @@ detect_claude_dir() {
   esac
 }
 
+DELETE_TEMPLATES=false
+for arg in "$@"; do
+  case "$arg" in
+    --all) DELETE_TEMPLATES=true ;;
+  esac
+done
+
 CLAUDE_DIR="$(detect_claude_dir)"
 
 if [[ -z "$CLAUDE_DIR" ]]; then
@@ -96,7 +114,21 @@ if [[ $found_rules -eq 0 ]]; then
   echo "  SKIP: 규칙 파일 없음"
 fi
 
+# 템플릿 삭제 (--all 옵션)
+if [[ "$DELETE_TEMPLATES" == "true" ]]; then
+  if [[ -d "$CLAUDE_DIR/templates/flowset" ]]; then
+    rm -rf "$CLAUDE_DIR/templates/flowset"
+    echo "✅ 템플릿 삭제: $CLAUDE_DIR/templates/flowset/"
+  else
+    echo "  SKIP: 템플릿 디렉토리 없음"
+  fi
+fi
+
 echo ""
 echo "=== 삭제 완료 ==="
 echo "삭제된 항목: 스킬 디렉토리 + ${found_rules}개 규칙 파일"
-echo "템플릿(settings/templates/)은 삭제하지 않았습니다."
+if [[ "$DELETE_TEMPLATES" == "true" ]]; then
+  echo "템플릿도 함께 삭제했습니다."
+else
+  echo "템플릿은 유지했습니다. 완전 삭제: bash uninstall.sh --all"
+fi

@@ -6,6 +6,12 @@
 
 set -euo pipefail
 
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) chcp.com 65001 > /dev/null 2>&1 || true ;;
+esac
+
 PR_NUMBER="${1:?PR 번호를 입력하세요. 예: bash .flowset/scripts/enqueue-pr.sh 79}"
 shift || true
 

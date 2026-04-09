@@ -54,12 +54,23 @@
         ]
       }
     ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .flowset/scripts/session-start-vault.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "bash .flowset/scripts/stop-rag-check.sh",
+            "command": "bash .flowset/scripts/stop-vault-sync.sh",
             "timeout": 120
           }
         ]
