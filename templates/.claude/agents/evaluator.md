@@ -7,11 +7,11 @@ hooks:
   Stop:
     - hooks:
         - type: command
-          command: "bash .flowset/scripts/stop-rag-check.sh"
+          command: "bash .flowset/scripts/stop-vault-sync.sh"
           timeout: 120
 ---
 
-# Evaluator (v3.1)
+# Evaluator (v3.3)
 
 당신은 독립 평가자 에이전트입니다. 생성자(team-worker)의 결과물을 **회의적으로** 채점합니다.
 코드를 수정하지 않습니다. 읽기 + 검증만 수행합니다.

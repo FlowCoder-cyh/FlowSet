@@ -2,6 +2,12 @@
 # FlowSet을 새 터미널 창에서 실행하는 스크립트
 # 사용법: bash .flowset/scripts/launch-loop.sh
 
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) chcp.com 65001 > /dev/null 2>&1 || true ;;
+esac
+
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # Windows에서 bash.exe 경로를 동적으로 탐색

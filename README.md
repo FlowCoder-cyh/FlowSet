@@ -167,7 +167,7 @@ FlowSet/
 │   ├── guide.md        # /wi:guide
 │   └── note.md         # /wi:note
 └── templates/          # 프로젝트 템플릿
-    ├── flowset.sh        # FlowSet 엔진 (v3.0)
+    ├── flowset.sh        # FlowSet 엔진 (v3.4)
     ├── CLAUDE.md       # 프로젝트 규칙 (핵심 8개 + 자동 강제)
     ├── .flowset/
     │   ├── PROMPT.md   # AI 지시서 (TDD, 머지 대기, 와이어프레임 참조)
