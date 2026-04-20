@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 # task-completed-eval.sh — TaskCompleted hook
 # 태스크 완료 시 스프린트 계약이 존재하면 평가자 검증을 요구
 # 스프린트 계약이 없으면 통과 (기존 호환)

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 # resolve-team.sh — TEAM_NAME 해소 유틸리티
 # hook에서 source하여 사용
 

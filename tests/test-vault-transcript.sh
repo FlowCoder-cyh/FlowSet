@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 # test-vault-transcript.sh — vault_extract_transcript / vault_build_* 함수 검증
 # 실행: bash tests/test-vault-transcript.sh
 
@@ -11,19 +13,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 # vault-helpers.sh 로드 (VAULT_ENABLED=false로 CRUD 함수는 비활성)
+# templates/가 master copy. .flowset/scripts/는 저장소 자체 과거 복사본(별도 sync WI에서 처리)
+# test는 정식 templates 버전을 검증한다
 export VAULT_ENABLED=false
-source "$PROJECT_DIR/.flowset/scripts/vault-helpers.sh" 2>/dev/null
+source "$PROJECT_DIR/templates/.flowset/scripts/vault-helpers.sh" 2>/dev/null
 
 assert_eq() {
   local desc="$1" expected="$2" actual="$3"
   if [[ "$expected" == "$actual" ]]; then
     echo "  PASS: $desc"
-    ((PASS++))
+    PASS=$((PASS + 1))
   else
     echo "  FAIL: $desc"
     echo "    expected: $(echo "$expected" | head -1)"
     echo "    actual:   $(echo "$actual" | head -1)"
-    ((FAIL++))
+    FAIL=$((FAIL + 1))
   fi
 }
 
@@ -31,10 +35,10 @@ assert_contains() {
   local desc="$1" needle="$2" haystack="$3"
   if echo "$haystack" | grep -qF "$needle"; then
     echo "  PASS: $desc"
-    ((PASS++))
+    PASS=$((PASS + 1))
   else
     echo "  FAIL: $desc (not found: '$needle')"
-    ((FAIL++))
+    FAIL=$((FAIL + 1))
   fi
 }
 
@@ -42,10 +46,10 @@ assert_empty() {
   local desc="$1" actual="$2"
   if [[ -z "$actual" ]]; then
     echo "  PASS: $desc"
-    ((PASS++))
+    PASS=$((PASS + 1))
   else
     echo "  FAIL: $desc (expected empty, got: '$actual')"
-    ((FAIL++))
+    FAIL=$((FAIL + 1))
   fi
 }
 
@@ -118,7 +122,7 @@ if [[ -n "$TRANSCRIPT_RECENT_COMMITS" ]]; then
   assert_contains "commits section" "Commits This Session" "$TRANSCRIPT_STATE_CONTENT"
 else
   echo "  SKIP: commits section (git log empty in test env)"
-  ((PASS++))
+  PASS=$((PASS + 1))
 fi
 
 echo "[3.2] 최소 인자"
@@ -132,19 +136,20 @@ echo ""
 echo "=== PCRE 패턴 엣지케이스 ==="
 
 echo "[4.1] 한글 작업명"
-result=$(echo '"WI-001-feat 사용자 인증 추가"' | grep -oP 'WI-\d{3,4}(-\d+)?-\w+ [^"\\\\]+' 2>/dev/null)
+result=$(echo '"WI-001-feat 사용자 인증 추가"' | grep -oP 'WI-\d{3,4}(-\d+)?-\w+ [^"\\\\]+' 2>/dev/null || true)
 assert_eq "한글 커밋" "WI-001-feat 사용자 인증 추가" "$result"
 
 echo "[4.2] 서브넘버링 (WI-001-1-fix)"
-result=$(echo '"WI-001-1-fix 핫픽스"' | grep -oP 'WI-\d{3,4}(-\d+)?-\w+ [^"\\\\]+' 2>/dev/null)
+result=$(echo '"WI-001-1-fix 핫픽스"' | grep -oP 'WI-\d{3,4}(-\d+)?-\w+ [^"\\\\]+' 2>/dev/null || true)
 assert_eq "서브넘버" "WI-001-1-fix 핫픽스" "$result"
 
 echo "[4.3] PR 추출"
-result=$(echo '"gh pr create --title test --body ok"' | grep -oP 'gh pr create[^"\\\\]*' 2>/dev/null)
+result=$(echo '"gh pr create --title test --body ok"' | grep -oP 'gh pr create[^"\\\\]*' 2>/dev/null || true)
 assert_eq "pr create" "gh pr create --title test --body ok" "$result"
 
 echo "[4.4] 매칭 없는 입력"
-result=$(echo '"일반 텍스트"' | grep -oP 'WI-\d{3,4}(-\d+)?-\w+ [^"\\\\]+' 2>/dev/null)
+# grep 매칭 실패 시 exit 1 반환 → set -e 회피를 위해 || true
+result=$(echo '"일반 텍스트"' | grep -oP 'WI-\d{3,4}(-\d+)?-\w+ [^"\\\\]+' 2>/dev/null || true)
 assert_empty "no match" "$result"
 
 # --- 테스트 5: cch sanitize ---

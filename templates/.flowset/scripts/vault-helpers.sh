@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 # vault-helpers.sh — Obsidian vault CRUD via Local REST API
 # flowset.sh에서 source하여 사용
 # VAULT_ENABLED=false이면 모든 함수가 조용히 실패 (graceful degradation)
@@ -354,17 +356,18 @@ vault_extract_transcript() {
   TRANSCRIPT_RECENT_COMMITS=""
 
   if [[ -n "$transcript_path" && -f "$transcript_path" ]]; then
-    TRANSCRIPT_SESSION_START=$(head -1 "$transcript_path" | jq -r '.timestamp // empty' 2>/dev/null)
-    TRANSCRIPT_COMMITS=$(grep -oP 'WI-\d{3,4}(-\d+)?-\w+ [^"\\\\]+' "$transcript_path" 2>/dev/null | sort -u | head -15)
-    TRANSCRIPT_PRS=$(grep -oP 'gh pr create[^"\\\\]*' "$transcript_path" 2>/dev/null | sort -u | head -5)
+    # v4.0: set -o pipefail 환경 대응. grep 매칭 없음(exit 1)이 파이프 실패로 전파되지 않도록 || true
+    TRANSCRIPT_SESSION_START=$(head -1 "$transcript_path" | jq -r '.timestamp // empty' 2>/dev/null || true)
+    TRANSCRIPT_COMMITS=$(grep -oP 'WI-\d{3,4}(-\d+)?-\w+ [^"\\\\]+' "$transcript_path" 2>/dev/null | sort -u | head -15 || true)
+    TRANSCRIPT_PRS=$(grep -oP 'gh pr create[^"\\\\]*' "$transcript_path" 2>/dev/null | sort -u | head -5 || true)
     TRANSCRIPT_TOOL_COUNT=$(grep -c '"type":"tool_use"' "$transcript_path" 2>/dev/null || echo "0")
   fi
 
   if [[ -n "$TRANSCRIPT_SESSION_START" ]]; then
-    TRANSCRIPT_RECENT_COMMITS=$(git log --oneline --since="$TRANSCRIPT_SESSION_START" 2>/dev/null | head -15)
+    TRANSCRIPT_RECENT_COMMITS=$(git log --oneline --since="$TRANSCRIPT_SESSION_START" 2>/dev/null | head -15 || true)
   fi
   if [[ -z "$TRANSCRIPT_RECENT_COMMITS" ]]; then
-    TRANSCRIPT_RECENT_COMMITS=$(git log --oneline --since="2 hours ago" 2>/dev/null | head -15)
+    TRANSCRIPT_RECENT_COMMITS=$(git log --oneline --since="2 hours ago" 2>/dev/null | head -15 || true)
   fi
 }
 

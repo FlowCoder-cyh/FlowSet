@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 # stop-vault-sync.sh — Stop hook (v3.4)
 # 세션 종료 시 transcript에서 작업 내역 추출 + vault 저장
 # Claude Code 유출 분석 기반 개선: transcript_path 활용, 구조화된 state.md

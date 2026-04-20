@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 # Stop hook: RAG + E2E + requirements + 검증 에이전트 + vault 동기화 (v3.0)
 # .claude/settings.json의 Stop hook으로 등록됨
 # 문제 발견 시 decision:"block" → Claude가 수정 작업 계속

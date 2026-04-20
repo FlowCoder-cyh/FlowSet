@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 # session-start-vault.sh — SessionStart hook (v3.0 범용)
 # 세션 시작/resume/clear/compact 시 vault 맥락 주입
 # 루프/대화형/팀 모드 모두에서 동작

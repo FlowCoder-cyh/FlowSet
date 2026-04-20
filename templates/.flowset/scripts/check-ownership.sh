@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 # check-ownership.sh — 팀 소유권 기반 파일 수정 제한 (v3.3)
 # PreToolUse hook (matcher: "Edit|Write")
 # TEAM_NAME 미설정 시 무동작 (solo 모드 호환)
