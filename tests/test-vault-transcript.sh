@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 # test-vault-transcript.sh — vault_extract_transcript / vault_build_* 함수 검증
 # 실행: bash tests/test-vault-transcript.sh
 

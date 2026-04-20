@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 # FlowSet을 새 터미널 창에서 실행하는 스크립트
 # 사용법: bash .flowset/scripts/launch-loop.sh
 

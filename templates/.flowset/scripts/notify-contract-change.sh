@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 # notify-contract-change.sh — PostToolUse hook (matcher: "Edit|Write")
 # contracts/ 파일 변경 시 Claude에게 알림 → 관련 팀 전원 리뷰 유도
 # contracts/ 외 파일은 무동작

@@ -125,11 +125,11 @@ EOF
 restore_state() {
   if [[ -f "$STATE_FILE" ]]; then
     local prev_status prev_loop prev_time prev_cost prev_sha
-    prev_status=$(sed -n 's/.*"status"\s*:\s*"\([^"]*\)".*/\1/p' "$STATE_FILE" 2>/dev/null || echo "unknown")
-    prev_loop=$(sed -n 's/.*"loop_count"\s*:\s*\([0-9]*\).*/\1/p' "$STATE_FILE" 2>/dev/null || echo "0")
-    prev_time=$(sed -n 's/.*"timestamp"\s*:\s*"\([^"]*\)".*/\1/p' "$STATE_FILE" 2>/dev/null || echo "unknown")
-    prev_cost=$(sed -n 's/.*"total_cost_usd"\s*:\s*\([0-9.]*\).*/\1/p' "$STATE_FILE" 2>/dev/null || echo "0")
-    prev_sha=$(sed -n 's/.*"last_git_sha"\s*:\s*"\([^"]*\)".*/\1/p' "$STATE_FILE" 2>/dev/null || echo "")
+    prev_status=$(jq -r '.status // "unknown"' "$STATE_FILE" 2>/dev/null || echo "unknown")
+    prev_loop=$(jq -r '.loop_count // 0' "$STATE_FILE" 2>/dev/null || echo "0")
+    prev_time=$(jq -r '.timestamp // "unknown"' "$STATE_FILE" 2>/dev/null || echo "unknown")
+    prev_cost=$(jq -r '.total_cost_usd // 0' "$STATE_FILE" 2>/dev/null || echo "0")
+    prev_sha=$(jq -r '.last_git_sha // ""' "$STATE_FILE" 2>/dev/null || echo "")
 
     # 현재 git SHA와 비교 → 수동 변경 감지
     local current_sha
@@ -146,7 +146,7 @@ restore_state() {
       else
         # 코드 변경 없음 → 이전 세션 재활용 가능
         local prev_session
-        prev_session=$(sed -n 's/.*"session_id"\s*:\s*"\([^"]*\)".*/\1/p' "$STATE_FILE" 2>/dev/null || echo "")
+        prev_session=$(jq -r '.session_id // ""' "$STATE_FILE" 2>/dev/null || echo "")
         if [[ -n "$prev_session" ]]; then
           current_session_id="$prev_session"
           log "🔄 이전 세션 복구: ${prev_session:0:8}..."
@@ -403,6 +403,15 @@ preflight() {
   # git 확인
   if ! git rev-parse --git-dir &> /dev/null; then
     echo "ERROR: git 저장소가 아닙니다."
+    errors=$((errors + 1))
+  fi
+
+  # jq 확인 (v4.0부터 필수 — execute_claude()의 JSON 응답 파싱에 사용)
+  if ! command -v jq &> /dev/null; then
+    echo "ERROR: jq가 설치되어 있지 않습니다. v4.0부터 필수 의존성입니다."
+    echo "  Windows: winget install jqlang.jq"
+    echo "  macOS:   brew install jq"
+    echo "  Linux:   apt install jq  (또는 yum install jq)"
     errors=$((errors + 1))
   fi
 
@@ -1656,14 +1665,17 @@ execute_claude() {
   local output
   output=$(cat "$logfile")
 
-  # 세션 ID 및 토큰 사용량 추출 (sed 사용 — Git Bash 호환)
+  # 세션 ID 및 토큰 사용량 추출 (v4.0: sed → jq 전환 — JSON 사양 기반 정확성)
+  # preflight()에서 jq 존재 보장. 실패 시 빈 문자열 fallback
   local new_session_id iteration_cost
-  new_session_id=$(echo "$output" | sed -n 's/.*"session_id"\s*:\s*"\([^"]*\)".*/\1/p' | head -1)
-  iteration_cost=$(echo "$output" | sed -n 's/.*"total_cost_usd"\s*:\s*\([0-9.]*\).*/\1/p' | head -1)
+  new_session_id=$(echo "$output" | jq -r '.session_id // empty' 2>/dev/null || echo "")
+  iteration_cost=$(echo "$output" | jq -r '.total_cost_usd // empty' 2>/dev/null || echo "")
 
   # 컨텍스트 크기 추정: cache_creation_input_tokens = 대화에 추가된 고유 콘텐츠 누적합
   # (cache_read는 매 턴마다 중복 카운트되므로 컨텍스트 크기로 사용하면 안 됨)
-  local cache_creation=$(echo "$output" | sed -n 's/.*"cache_creation_input_tokens"\s*:\s*\([0-9]*\).*/\1/p' | head -1)
+  # 중첩 위치(usage 내부 등) 어디에 있어도 찾도록 재귀 순회 후 첫 값 사용
+  local cache_creation
+  cache_creation=$(echo "$output" | jq -r '.. | objects | .cache_creation_input_tokens? // empty' 2>/dev/null | head -1 || echo "")
   local total_context_tokens=${cache_creation:-0}
 
   # 비용 표시: API 키 사용자만 (구독 사용자는 토큰만 표시)

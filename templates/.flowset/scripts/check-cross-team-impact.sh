@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 # check-cross-team-impact.sh — PreToolUse hook (matcher: "Edit|Write")
 # 팀간 영향 파일 변경 시 차단 → 리드 승인 필요
 # ownership.json의 crossTeamReview 섹션을 동적으로 읽어 감시

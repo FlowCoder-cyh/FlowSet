@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 # vault-helpers.sh — Obsidian vault CRUD via Local REST API
 # flowset.sh에서 source하여 사용
 # VAULT_ENABLED=false이면 모든 함수가 조용히 실패 (graceful degradation)
