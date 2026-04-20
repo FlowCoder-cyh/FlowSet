@@ -357,16 +357,16 @@ vault_extract_transcript() {
 
   if [[ -n "$transcript_path" && -f "$transcript_path" ]]; then
     TRANSCRIPT_SESSION_START=$(head -1 "$transcript_path" | jq -r '.timestamp // empty' 2>/dev/null)
-    TRANSCRIPT_COMMITS=$(grep -oP 'WI-\d{3,4}(-\d+)?-\w+ [^"\\\\]+' "$transcript_path" 2>/dev/null | sort -u | head -15)
-    TRANSCRIPT_PRS=$(grep -oP 'gh pr create[^"\\\\]*' "$transcript_path" 2>/dev/null | sort -u | head -5)
+    TRANSCRIPT_COMMITS=$(grep -oP 'WI-\d{3,4}(-\d+)?-\w+ [^"\\\\]+' "$transcript_path" 2>/dev/null | sort -u | head -15 || true)
+    TRANSCRIPT_PRS=$(grep -oP 'gh pr create[^"\\\\]*' "$transcript_path" 2>/dev/null | sort -u | head -5 || true)
     TRANSCRIPT_TOOL_COUNT=$(grep -c '"type":"tool_use"' "$transcript_path" 2>/dev/null || echo "0")
   fi
 
   if [[ -n "$TRANSCRIPT_SESSION_START" ]]; then
-    TRANSCRIPT_RECENT_COMMITS=$(git log --oneline --since="$TRANSCRIPT_SESSION_START" 2>/dev/null | head -15)
+    TRANSCRIPT_RECENT_COMMITS=$(git log --oneline --since="$TRANSCRIPT_SESSION_START" 2>/dev/null | head -15 || true)
   fi
   if [[ -z "$TRANSCRIPT_RECENT_COMMITS" ]]; then
-    TRANSCRIPT_RECENT_COMMITS=$(git log --oneline --since="2 hours ago" 2>/dev/null | head -15)
+    TRANSCRIPT_RECENT_COMMITS=$(git log --oneline --since="2 hours ago" 2>/dev/null | head -15 || true)
   fi
 }
 

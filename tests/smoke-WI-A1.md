@@ -141,14 +141,58 @@ fi
 
 ---
 
-## 한번에 전체 재실행
+## Smoke 5 — test-vault-transcript.sh 회귀 검증
 
+**목적**: 기존 1개 bash 테스트(`tests/test-vault-transcript.sh`)의 31개 assertion이 WI-A1 변경(set -euo pipefail + jq 전환) 이후에도 전부 통과하는지 확인.
+
+**재현 명령**:
 ```bash
-cd <repo-root>
-bash tests/smoke-WI-A1.md  # 이 파일은 설명용이므로 직접 실행 안 됨
-# 각 Smoke 블록 명령을 순차 복사 실행
+bash tests/test-vault-transcript.sh
+echo "EXIT_CODE=$?"
 ```
 
-이 문서는 WI-A1 회귀 감지용 기준선. 후속 WI(A2~A4, B, C, D)가 이 시나리오를 깨뜨리지 않는지 매 릴리즈 전 확인.
+**예상 출력 (마지막 3줄)**:
+```
+================================
+PASS: 31 / FAIL: 0 / TOTAL: 31
+ALL TESTS PASSED
+EXIT_CODE=0
+```
+
+**의미**: 31개 assertion 전부 통과. set -euo pipefail 추가로 인한 `vault_extract_transcript` 내부 grep 파이프 실패(set -o pipefail) 회귀를 `|| true` 방어로 해결했음을 증명. `test-vault-transcript.sh`는 `templates/.flowset/scripts/vault-helpers.sh`(master copy)를 source하도록 수정됨.
+
+**수정된 방어 코드** (`vault-helpers.sh:360-369`):
+- `grep -oP | sort | head` 파이프 3곳 → 각각 `|| true` 추가
+- `git log --oneline | head` 파이프 2곳 → 각각 `|| true` 추가
+- `((PASS++))` / `((FAIL++))` → `PASS=$((PASS + 1))` / `FAIL=$((FAIL + 1))` (bash gotcha: var=0일 때 반환값 0으로 set -e 조기 종료)
+
+---
+
+## 자동 실행 스크립트
+
+위 5종 smoke 시나리오를 한 번에 실행:
+
+```bash
+bash tests/run-smoke-WI-A1.sh
+```
+
+**예상 출력 요약**:
+```
+  Smoke Total: 13
+  PASS: 13
+  FAIL: 0
+  ✅ WI-A1 ALL SMOKE PASSED
+```
+
+- Smoke 1: 1개 assertion
+- Smoke 2: 6개 키 파싱
+- Smoke 3: 3개 키 파싱(재귀 순회)
+- Smoke 4: 2개 의존성 체크
+- Smoke 5: test-vault-transcript.sh(31개 내부 assertion → 1개 통합 pass)
+- **합계: 13 assertion**
+
+`exit 1` 반환 시 WI-A1 회귀. `exit 0`이 릴리즈 조건.
+
+이 문서는 WI-A1 회귀 감지용 기준선. 후속 WI(A2~A4, B, C, D)가 이 시나리오를 깨뜨리지 않는지 매 릴리즈 전 `run-smoke-WI-A1.sh`로 확인.
 
 **WI-A3(bats 테스트)에서 정식 회귀 테스트로 변환 예정.**
