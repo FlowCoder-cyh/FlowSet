@@ -109,13 +109,15 @@ fi
 echo "  ✅ jq $(jq --version 2>&1 | head -1)"
 
 # bash 4.4+ — lib/state.sh와 filter-rebuild에서 빈 배열 확장 안전성
-if ! (( BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4) )); then
+# 단일 조건식으로 if-else 분기 (이전 버전의 line 118 조건식 버그 수정)
+if (( BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4) )); then
+  echo "  ✅ bash ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}"
+else
   echo "  ⚠️  WARN: bash ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]} 감지 (4.4+ 권장)"
   echo "     빈 배열 확장(\"\${arr[@]}\") 시 unbound variable 오류 가능"
   echo "     해당 사용처에 \"\${arr[@]-}\" 방어 권장"
   echo "     Homebrew(macOS): brew install bash"
 fi
-[[ "${BASH_VERSINFO[0]}" -ge 4 && "${BASH_VERSINFO[1]}" -ge 4 ]] && echo "  ✅ bash ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}"
 
 # shellcheck / bats — 개발용(선택)
 if command -v shellcheck &> /dev/null; then
