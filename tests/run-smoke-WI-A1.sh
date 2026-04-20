@@ -75,9 +75,22 @@ sid=$(jq -r '.session_id // empty' "$TMPDIR/fake_claude_out.json")
 cost=$(jq -r '.total_cost_usd // empty' "$TMPDIR/fake_claude_out.json")
 cache=$(jq -r '.. | objects | .cache_creation_input_tokens? // empty' "$TMPDIR/fake_claude_out.json" | head -1)
 
-[[ "$sid"  == "s-xyz-789" ]] && pass "session_id = $sid"                 || fail "session_id = '$sid'"
-[[ "$cost" == "0.042" ]]     && pass "total_cost_usd = $cost"            || fail "total_cost_usd = '$cost'"
-[[ "$cache" == "15000" ]]    && pass "cache_creation(DFS 첫 값) = $cache" || fail "cache_creation = '$cache' (기대: 15000, usage.*이 message.usage.*보다 우선)"
+# if-else 명시 분기 — `[[ ]] && pass || fail` 패턴의 잠재 함정(pass 실패 시 fail 동시 실행) 회피
+if [[ "$sid" == "s-xyz-789" ]]; then
+  pass "session_id = $sid"
+else
+  fail "session_id = '$sid'"
+fi
+if [[ "$cost" == "0.042" ]]; then
+  pass "total_cost_usd = $cost"
+else
+  fail "total_cost_usd = '$cost'"
+fi
+if [[ "$cache" == "15000" ]]; then
+  pass "cache_creation(DFS 첫 값) = $cache"
+else
+  fail "cache_creation = '$cache' (기대: 15000, usage.*이 message.usage.*보다 우선)"
+fi
 
 echo ""
 echo "=== Smoke 4: install.sh 의존성 체크 블록 ==="
@@ -92,11 +105,41 @@ check_output=$(bash -c '
   fi
 ' 2>&1)
 
-echo "$check_output" | grep -q "^JQ_OK$" && pass "jq 존재 체크 통과" || fail "jq 체크 실패"
+if echo "$check_output" | grep -q "^JQ_OK$"; then
+  pass "jq 존재 체크 통과"
+else
+  fail "jq 체크 실패"
+fi
 if echo "$check_output" | grep -qE "^BASH_(PASS|WARN)_"; then
   pass "bash 버전 분기 동작 ($(echo "$check_output" | grep -oE 'BASH_[A-Z]+_[0-9]+\.[0-9]+'))"
 else
   fail "bash 버전 체크 분기 실패"
+fi
+
+echo ""
+echo "=== Smoke 6: .flowset/scripts/vault-helpers.sh runtime 검증 ==="
+# FlowSet 저장소 자체 hook이 사용하는 .flowset/scripts/ 경로의 vault-helpers
+# 손상된 transcript JSON을 넘겨도 set -euo pipefail 하에서 조기 종료하지 않는지 확인
+# (templates/는 Smoke 2·3에서 검증. .flowset/scripts/는 이 Smoke 6에서 커버)
+cat > "$TMPDIR/bad_transcript.jsonl" <<'EOF'
+not a valid json line
+{also broken
+EOF
+
+local_vault_ok=0
+bash -c "
+  set -euo pipefail
+  export VAULT_ENABLED=false
+  source '$REPO_ROOT/.flowset/scripts/vault-helpers.sh'
+  vault_extract_transcript '$TMPDIR/bad_transcript.jsonl'
+  # 손상 JSON이어도 TRANSCRIPT_SESSION_START는 빈 문자열로 안전하게 설정됨
+  [[ -z \"\$TRANSCRIPT_SESSION_START\" ]] || exit 2
+" && local_vault_ok=1 || local_vault_ok=0
+
+if [[ "$local_vault_ok" == "1" ]]; then
+  pass ".flowset/scripts/vault-helpers.sh 손상 JSON에서 set -e 안전"
+else
+  fail ".flowset/scripts/vault-helpers.sh 손상 JSON에서 조기 종료 (|| true 누락 가능성)"
 fi
 
 echo ""

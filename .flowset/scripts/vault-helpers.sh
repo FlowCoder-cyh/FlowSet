@@ -356,7 +356,7 @@ vault_extract_transcript() {
   TRANSCRIPT_RECENT_COMMITS=""
 
   if [[ -n "$transcript_path" && -f "$transcript_path" ]]; then
-    TRANSCRIPT_SESSION_START=$(head -1 "$transcript_path" | jq -r '.timestamp // empty' 2>/dev/null)
+    TRANSCRIPT_SESSION_START=$(head -1 "$transcript_path" | jq -r '.timestamp // empty' 2>/dev/null || true)
     TRANSCRIPT_COMMITS=$(grep -oP 'WI-\d{3,4}(-\d+)?-\w+ [^"\\\\]+' "$transcript_path" 2>/dev/null | sort -u | head -15 || true)
     TRANSCRIPT_PRS=$(grep -oP 'gh pr create[^"\\\\]*' "$transcript_path" 2>/dev/null | sort -u | head -5 || true)
     TRANSCRIPT_TOOL_COUNT=$(grep -c '"type":"tool_use"' "$transcript_path" 2>/dev/null || echo "0")

@@ -141,6 +141,32 @@ fi
 
 ---
 
+## Smoke 6 — .flowset/scripts/vault-helpers.sh runtime 검증
+
+**목적**: FlowSet 저장소 자체 hook이 사용하는 `.flowset/scripts/vault-helpers.sh` 경로에서 `vault_extract_transcript`에 손상된 JSON을 넘겨도 `set -euo pipefail` 환경에서 조기 종료하지 않는지 확인. Smoke 2·3은 `templates/` master copy를 검증하나, 저장소 자체의 런타임은 `.flowset/scripts/`를 사용하므로 이 경로의 방어 상태도 독립 검증 필요.
+
+**재현 명령**:
+```bash
+cat > /tmp/bad.jsonl <<'EOF'
+not a valid json line
+{also broken
+EOF
+bash -c "
+  set -euo pipefail
+  export VAULT_ENABLED=false
+  source .flowset/scripts/vault-helpers.sh
+  vault_extract_transcript '/tmp/bad.jsonl'
+  [[ -z \"\$TRANSCRIPT_SESSION_START\" ]] || exit 2
+" && echo "PASS" || echo "FAIL"
+rm -f /tmp/bad.jsonl
+```
+
+**예상 출력**: `PASS`
+
+**의미**: `head -1 | jq ... 2>/dev/null || true` 방어가 `.flowset/scripts/vault-helpers.sh:359`에 정확히 적용됨을 확인. 방어 누락 시 jq가 invalid JSON에서 exit 5 반환 → set -o pipefail이 함수 중단 → 호출자 전파로 `exit 2` 대신 파이프 실패 코드로 종료됨.
+
+---
+
 ## Smoke 5 — test-vault-transcript.sh 회귀 검증
 
 **목적**: 기존 1개 bash 테스트(`tests/test-vault-transcript.sh`)의 31개 assertion이 WI-A1 변경(set -euo pipefail + jq 전환) 이후에도 전부 통과하는지 확인.
@@ -178,18 +204,19 @@ bash tests/run-smoke-WI-A1.sh
 
 **예상 출력 요약**:
 ```
-  Smoke Total: 13
-  PASS: 13
+  Smoke Total: 14
+  PASS: 14
   FAIL: 0
   ✅ WI-A1 ALL SMOKE PASSED
 ```
 
-- Smoke 1: 1개 assertion
-- Smoke 2: 6개 키 파싱
-- Smoke 3: 3개 키 파싱(재귀 순회)
-- Smoke 4: 2개 의존성 체크
-- Smoke 5: test-vault-transcript.sh(31개 내부 assertion → 1개 통합 pass)
-- **합계: 13 assertion**
+- Smoke 1: 1개 assertion (stop-rag-check.sh 빈 INPUT)
+- Smoke 2: 6개 키 파싱 (restore_state)
+- Smoke 3: 3개 키 파싱 (execute_claude 재귀 순회)
+- Smoke 4: 2개 의존성 체크 (install.sh jq + bash)
+- Smoke 5: 1개 통합 (test-vault-transcript.sh 31 assertion 통합)
+- Smoke 6: 1개 runtime 검증 (.flowset/scripts/ 손상 JSON)
+- **합계: 14 assertion**
 
 `exit 1` 반환 시 WI-A1 회귀. `exit 0`이 릴리즈 조건.
 
