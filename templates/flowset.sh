@@ -1674,6 +1674,8 @@ execute_claude() {
   # 컨텍스트 크기 추정: cache_creation_input_tokens = 대화에 추가된 고유 콘텐츠 누적합
   # (cache_read는 매 턴마다 중복 카운트되므로 컨텍스트 크기로 사용하면 안 됨)
   # 중첩 위치(usage 내부 등) 어디에 있어도 찾도록 재귀 순회 후 첫 값 사용
+  # 주: sed 원본은 한 줄 내 여러 매칭 시 마지막 값을 반환했고, jq DFS는 첫 값을 반환함.
+  # Claude CLI `--output-format json` 응답에는 한 번만 나타나므로 실무 차이 없음.
   local cache_creation
   cache_creation=$(echo "$output" | jq -r '.. | objects | .cache_creation_input_tokens? // empty' 2>/dev/null | head -1 || echo "")
   local total_context_tokens=${cache_creation:-0}

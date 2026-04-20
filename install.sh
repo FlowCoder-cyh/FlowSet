@@ -95,6 +95,43 @@ echo ""
 echo "Claude Code 설정 디렉토리: $CLAUDE_DIR"
 echo ""
 
+#--- v4.0: 필수 의존성 체크 (fail-fast) ---
+echo "[0/6] 필수 의존성 확인..."
+
+# jq — flowset.sh의 JSON 파싱에 사용 (v4.0부터 필수)
+if ! command -v jq &> /dev/null; then
+  echo "  ❌ ERROR: jq가 설치되어 있지 않습니다. v4.0부터 필수 의존성입니다."
+  echo "     Windows: winget install jqlang.jq"
+  echo "     macOS:   brew install jq"
+  echo "     Linux:   sudo apt install jq  (또는 sudo yum install jq)"
+  exit 1
+fi
+echo "  ✅ jq $(jq --version 2>&1 | head -1)"
+
+# bash 4.4+ — lib/state.sh와 filter-rebuild에서 빈 배열 확장 안전성
+if ! (( BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4) )); then
+  echo "  ⚠️  WARN: bash ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]} 감지 (4.4+ 권장)"
+  echo "     빈 배열 확장(\"\${arr[@]}\") 시 unbound variable 오류 가능"
+  echo "     해당 사용처에 \"\${arr[@]-}\" 방어 권장"
+  echo "     Homebrew(macOS): brew install bash"
+fi
+[[ "${BASH_VERSINFO[0]}" -ge 4 && "${BASH_VERSINFO[1]}" -ge 4 ]] && echo "  ✅ bash ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}"
+
+# shellcheck / bats — 개발용(선택)
+if command -v shellcheck &> /dev/null; then
+  echo "  ✅ shellcheck $(shellcheck --version 2>&1 | grep version | head -1 | awk '{print $2}')"
+else
+  echo "  ℹ️  shellcheck 미설치 (개발용, 선택). CI에서 사용"
+fi
+
+if command -v bats &> /dev/null; then
+  echo "  ✅ bats $(bats --version 2>&1 | head -1)"
+else
+  echo "  ℹ️  bats 미설치 (개발용, 선택). tests/ 실행에 필요"
+fi
+
+echo ""
+
 #--- 1. 디렉토리 생성 ---
 echo "[1/5] 디렉토리 생성..."
 mkdir -p "$CLAUDE_DIR/commands/wi"
