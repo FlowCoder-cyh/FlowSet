@@ -64,6 +64,8 @@ else
   # fallback shim — lib/state.sh 없는 기존 프로젝트에서 save/restore_state가 작동하도록
   # state_get KEY → 전역변수 $KEY 값 echo (없으면 빈 문자열)
   # state_set KEY VAL → 전역변수 $KEY = VAL 할당
+  # 보안 주: KEY는 반드시 RUNTIME_STATE_KEYS 8개(영문+언더스코어) 이름만 전달.
+  #        사용자 입력을 KEY로 직접 주입 금지(eval 취약점 방지). 값(VAL)은 인용 처리됨.
   state_get() { local k="${1:-}"; [[ -z "$k" ]] && return 0; eval "printf '%s' \"\${$k:-}\""; }
   state_set() { local k="${1:-}" v="${2:-}"; [[ -z "$k" ]] && return 1; eval "$k=\"\$v\""; }
   state_init() { :; }  # 전역변수는 이미 선언됨 (:82-93)

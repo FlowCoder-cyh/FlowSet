@@ -176,6 +176,33 @@ else
 fi
 
 echo ""
+echo "=== A2a-10: 설계 §11 체크리스트 — flowset.sh:82-93 변수 vs RUNTIME_STATE_KEYS 대조 ==="
+# 설계 §11 line 617-620 "이관 누락 방지 체크리스트"
+# flowset.sh:82-93에 선언된 전역변수 8개와 RUNTIME_STATE_KEYS 8개가 1:1 대응하는지 검증
+expected_vars="call_count consecutive_no_progress current_session_id last_commit_msg last_git_sha loop_count rate_limit_start total_cost_usd"
+actual_vars=$(awk '/^# State$/,/^COMPLETED_FILE=/' templates/flowset.sh | grep -oE '^[a-z_]+=' | sed 's/=$//' | sort -u | tr '\n' ' ' | sed 's/ $//')
+# 정렬된 8개 이름 매칭 (순서 무관)
+actual_sorted=$(echo "$actual_vars" | tr ' ' '\n' | sort | tr '\n' ' ' | sed 's/ $//')
+expected_sorted=$(echo "$expected_vars" | tr ' ' '\n' | sort | tr '\n' ' ' | sed 's/ $//')
+# flowset.sh에 있는 변수 중 RUNTIME_STATE_KEYS에 없는 것 탐지 (NO_PROGRESS_LIMIT, CONTEXT_THRESHOLD는 상수라 제외)
+diff_output=$(comm -23 <(echo "$expected_sorted" | tr ' ' '\n') <(echo "$actual_sorted" | tr ' ' '\n' | grep -vE '^(NO_PROGRESS_LIMIT|CONTEXT_THRESHOLD|STATE_FILE|COMPLETED_FILE)$') 2>/dev/null || true)
+if [[ -z "$diff_output" ]]; then
+  pass "RUNTIME_STATE_KEYS 8개 ↔ flowset.sh 전역변수 정합 (iteration_cost/total_context_tokens는 execute_claude 지역변수라 제외)"
+else
+  fail "RUNTIME_STATE_KEYS 누락: $diff_output"
+fi
+
+echo ""
+echo "=== A2a-11: iteration_cost/total_context_tokens 제외 근거 검증 ==="
+# 설계 §11 line 441: "iteration_cost, total_context_tokens는 execute_claude() 지역변수(:1662, :1667)이므로 이관 대상 아님"
+# → flowset.sh에서 해당 변수가 local 선언되는지 확인
+if grep -qE '^\s+local\s+(iteration_cost|total_context_tokens|new_session_id\s+iteration_cost)' templates/flowset.sh; then
+  pass "iteration_cost/total_context_tokens 지역변수 선언 확인 (state 이관 대상 아님)"
+else
+  fail "지역변수 선언 누락 (설계 §11 라인 441 근거 깨짐)"
+fi
+
+echo ""
 echo "================================"
 echo "  Smoke Total: $((PASS + FAIL))"
 echo "  PASS: $PASS"
