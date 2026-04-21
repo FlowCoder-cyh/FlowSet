@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# lib/merge.sh — FlowSet 머지 대기 + 병렬 실행 + 동기화 (v4.0 WI-A2d)
+# lib/merge.sh — FlowSet 머지 대기 + 병렬 실행 + 동기화 (v4.0 WI-A2d, WI-A2e state 전환)
 #
 # 목적:
 #   PR 머지 완료 대기, 병렬 워커 실행(worktree), regression issue → fix WI 주입,
@@ -34,8 +34,11 @@ set -euo pipefail
 #   SCRIPT_DIR, LOG_DIR, FIX_PLAN, COMPLETED_FILE, WORKTREE_DIR,
 #   PARALLEL_COUNT, PROMPT_FILE, MAX_TURNS, ALLOWED_TOOLS
 #
-# 상호작용 state (lib/state.sh RUNTIME_STATE_KEYS):
-#   call_count, loop_count (현재는 전역변수 직접 참조 — WI-A2e에서 state_get/set 전환 예정)
+# 상호작용 state (lib/state.sh의 RUNTIME_STATE_KEYS 중):
+#   call_count, loop_count
+#   (WI-A2e에서 state_get/set으로 전수 전환 완료 — WI-A2a 이중 기록 제거 약속 이행.
+#    execute_parallel subshell은 cur_loop 지역변수 스냅샷으로 RUNTIME_STATE_FILE
+#    공유 안전성 확보 — 절대 경로 기반 state 파일이라 subshell 가시성 보장)
 
 export LANG=en_US.UTF-8
 export LC_ALL=en_US.UTF-8

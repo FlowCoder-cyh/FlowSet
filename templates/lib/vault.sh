@@ -8,6 +8,13 @@ set -euo pipefail
 #   직접 source. .flowset/scripts/vault-helpers.sh는 이 파일을 re-source하는 얇은 shim으로
 #   남아 기존 hook(stop-vault-sync.sh / stop-rag-check.sh / commit-msg) 하위 호환 유지.
 #
+# flowset.sh에서 source한 후 호출 (state.sh/preflight.sh/worker.sh/merge.sh 다음 — 마지막):
+#   source lib/state.sh
+#   source lib/preflight.sh
+#   source lib/worker.sh
+#   source lib/merge.sh
+#   source lib/vault.sh
+#
 # 이관 규칙 (WI-A2b/c/d 패턴 동일):
 #   - 원본 vault-helpers.sh의 19개 함수 본체 그대로 복사 (md5 무결성)
 #   - export LANG/LC_ALL UTF-8 헤더 일관 적용
