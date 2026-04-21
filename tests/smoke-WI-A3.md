@@ -11,11 +11,12 @@ WI-A3 변경이 기존 bash smoke(126 assertion)를 깨뜨리지 않고, bats-co
 ## 변경 범위
 
 1. **`tests/bats/` (git submodule)** — bats-core 공식 저장소 (v1.13.0)
-   - `.gitmodules`에 `[submodule "tests/bats"]` 등록
+   - `.gitmodules`에 `[submodule "tests/bats"]` 등록 + `branch = v1.13.0` 태그 고정 (드리프트 방지)
    - `git submodule update --init --recursive`으로 초기화
-2. **`tests/bats_tests/core.bats` 신설** — 14개 `@test` 블록 (설계 §7 "10~20개 핵심 테스트" 준수)
+   - 버전 업그레이드 절차: `git -C tests/bats fetch --tags && git -C tests/bats checkout vX.Y.Z && git add tests/bats && git commit`
+2. **`tests/bats_tests/core.bats` 신설** — 16개 `@test` 블록 (설계 §7 "10~20개 핵심 테스트" 준수)
    - WI-A1 × 2 (set -euo + jq)
-   - WI-A2a × 2 (state_init + '=' 값 무결성)
+   - WI-A2a × 4 (state_init + '=' 값 무결성 + snapshot/restore 라운드트립 + lock 동작)
    - WI-A2b × 2 (preflight declare + fail-fast)
    - WI-A2c × 2 (execute_claude declare + 본체 제거)
    - WI-A2d × 2 (7함수 declare + 본체 제거)
@@ -54,19 +55,19 @@ HANDOFF R8 리스크 해소 기준.
 ```bash
 test -f tests/bats_tests/core.bats
 bash tests/bats/bin/bats --count tests/bats_tests/core.bats
-# 기대: 14 (10~20 범위 준수)
+# 기대: 16 (10~20 범위 준수)
 ```
 
 ### A3-4 — core.bats 전수 PASS (1 assertion)
 ```bash
 bash tests/bats/bin/bats tests/bats_tests/core.bats
-# 기대: 14/14 ok
+# 기대: 16/16 ok
 ```
 
 ### A3-5 — WI 커버리지 정합 (1 assertion)
 ```bash
 grep -cE '^@test "(WI-A1|WI-A2a|WI-A2b|WI-A2c|WI-A2d|WI-A2e|vault-helpers):' tests/bats_tests/core.bats
-# 기대: ≥ 14
+# 기대: ≥ 14 (실제 16, WI-A2a에 snapshot/restore + lock 추가로 확장)
 ```
 
 ### A3-6 — install.sh에 submodule 로직 추가 (1 assertion)
@@ -111,9 +112,9 @@ assertion 계수:
 - A3-7: 1 (bash -n 전체)
 - A3-8: 1 (학습 전이)
 - A3-9: 7 (비회귀 × 7개 smoke)
-- **합계: 17 assertion (smoke 레벨) + 14 bats 테스트 = 31 신규 assertion**
+- **합계: 17 assertion (smoke 레벨) + 16 bats 테스트 = 33 신규 assertion**
 
-**전체 누적**: 기존 126 + WI-A3 smoke 17 + bats 14 = **157 assertion**
+**전체 누적**: 기존 126 + WI-A3 smoke 17 + bats 16 = **159 assertion**
 
 ---
 

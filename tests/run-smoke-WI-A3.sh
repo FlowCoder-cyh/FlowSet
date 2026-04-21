@@ -93,7 +93,9 @@ else
 fi
 
 echo ""
-echo "=== A3-7: bash -n 전체 shell 통과 (.bats 제외) ==="
+echo "=== A3-7: bash -n 전체 shell 통과 (.bats/bats submodule 제외) ==="
+# .bats 파일은 find -name "*.sh" 확장자 필터로 자동 제외 (별도 -not 조건 불필요)
+# tests/bats/* 제외는 submodule 내부 7개 .sh (상류 bats-core 관리 소관, 본 프로젝트 검사 범위 밖)
 fail_count=0
 for f in $(find . -name "*.sh" -not -path "./.git/*" -not -path "./tests/bats/*"); do
   if ! bash -n "$f" 2>/dev/null; then

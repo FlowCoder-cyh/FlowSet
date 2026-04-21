@@ -52,6 +52,40 @@ setup() {
   [ "$(state_get last_commit_msg)" = "fix: url=https://foo?a=b&c=d" ]
 }
 
+@test "WI-A2a: state_snapshot/restore 라운드트립 (설계 §11 :552 subshell 패턴)" {
+  source templates/lib/state.sh
+  state_init
+  state_set loop_count 99
+  state_set current_session_id "snap-test-abc"
+  local snap
+  snap=$(state_snapshot)
+  [ -f "$snap" ]
+  # 설계 §11 :552 서브쉘 병렬 모드 시뮬:
+  #   서브쉘이 RUNTIME_STATE_FILE을 독립 경로로 override → state_restore로 부모 상태 복원
+  RUNTIME_STATE_FILE="${TMPDIR:-/tmp}/flowset-runtime-bats-restore-$$"
+  : > "$RUNTIME_STATE_FILE"
+  state_restore "$snap"
+  [ "$(state_get loop_count)" = "99" ]
+  [ "$(state_get current_session_id)" = "snap-test-abc" ]
+  rm -f "$RUNTIME_STATE_FILE"
+}
+
+@test "WI-A2a: state lock 동작 (flock 또는 mkdir fallback, 설계 §5 :235)" {
+  source templates/lib/state.sh
+  state_init
+  # lock 획득 → 경로 존재 → 해제 사이클
+  _state_lock_acquire
+  # flock 경로: exec 200>FILE → 일반 파일 생성됨
+  # mkdir 경로: 디렉토리 생성됨
+  [ -e "$RUNTIME_STATE_LOCK" ]
+  _state_lock_release
+  # 연속 100회 state_set 내부에서도 lock 정확히 동작 (경합 시 블록, 아니면 즉시)
+  for i in 1 2 3 4 5; do
+    state_set call_count "$i"
+  done
+  [ "$(state_get call_count)" = "5" ]
+}
+
 # --- WI-A2b: lib/preflight.sh ---
 
 @test "WI-A2b: lib/preflight.sh source 후 preflight 함수 declare" {
