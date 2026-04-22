@@ -64,7 +64,6 @@ echo "=== A4-3: [evaluator R1] actions/checkout@v4에 submodules: recursive ==="
 # evaluator WI-A3 2차 선제 관측 R1:
 #   "actions/checkout@v4에 submodules: recursive 필수 — 누락 시 tests/bats/ 미존재로 bats 실행 불가"
 recursive_count=$(grep -c 'submodules: recursive' "$CI_YML" || true)
-checkout_count=$(grep -cE 'uses: actions/checkout@v4' "$CI_YML" || true)
 # commit-check job은 submodules 불필요 (git log 검증만) → 3개 job에만 필요
 # 대상 job: lint / bats / smoke (commit-check 제외)
 if (( recursive_count >= 3 )); then
