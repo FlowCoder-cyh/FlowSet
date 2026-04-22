@@ -55,6 +55,8 @@ assert_empty() {
 
 # --- 테스트 데이터 생성 ---
 TMPDIR=$(mktemp -d)
+# $TMPDIR 즉시 전개 의도 (trap 시점에는 이미 값 확정)
+# shellcheck disable=SC2064
 trap "rm -rf $TMPDIR" EXIT
 
 # 모의 transcript JSONL

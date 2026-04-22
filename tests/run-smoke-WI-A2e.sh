@@ -203,12 +203,12 @@ fi
 echo ""
 echo "=== A2e-13: bash -n 전체 shell 통과 ==="
 fail_count=0
-for f in $(find . -name "*.sh" -not -path "./.git/*"); do
+while IFS= read -r -d '' f; do
   if ! bash -n "$f" 2>/dev/null; then
     fail_count=$((fail_count + 1))
     echo "    문법 오류: $f"
   fi
-done
+done < <(find . -name "*.sh" -not -path "./.git/*" -print0)
 if (( fail_count == 0 )); then
   pass "전체 shell bash -n 통과 (오류 0건)"
 else

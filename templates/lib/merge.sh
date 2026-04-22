@@ -214,7 +214,8 @@ reconcile_fix_plan() {
   done < "$COMPLETED_FILE"
   if [[ $changed -gt 0 ]]; then
     log "📋 fix_plan.md ${changed}건 동기화"
-    local fp_branch="chore/WI-chore-fix-plan-sync-$(date +%H%M%S)"
+    local fp_branch
+    fp_branch="chore/WI-chore-fix-plan-sync-$(date +%H%M%S)"
     if git checkout -b "$fp_branch" 2>/dev/null; then
       git add "$FIX_PLAN"
       git commit -m "WI-chore fix_plan 동기화 (${changed}건 완료)" 2>/dev/null || true
@@ -259,8 +260,10 @@ setup_worktree() {
     return 1
   }
 
-  # Copy gitignored/untracked files needed by claude
-  for f in .flowsetrc; do
+  # Copy gitignored/untracked files needed by claude (현재 .flowsetrc만 대상이지만
+  # 향후 추가 대상 확장 슬롯 유지 — 배열 구조로 이중 방어)
+  local -a untracked_files=(.flowsetrc)
+  for f in "${untracked_files[@]}"; do
     [[ -f "$f" ]] && cp "$f" "$worktree_path/$f" 2>/dev/null || true
   done
   mkdir -p "$worktree_path/$LOG_DIR"
@@ -440,7 +443,8 @@ ${rag_context}"
       wi_type="${wi_type:-feat}"
       local wi_num
       wi_num=$(echo "$wi" | grep -oE 'WI-[0-9]+' | head -1)
-      local pr_branch="${wi_type}/${wi_num}-${wi_type}-$(echo "$wi" | sed "s/.*${wi_type} //" | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/--*/-/g' | sed 's/-$//' | cut -c1-40)"
+      local pr_branch
+      pr_branch="${wi_type}/${wi_num}-${wi_type}-$(echo "$wi" | sed "s/.*${wi_type} //" | sed 's/[^a-zA-Z0-9]/-/g' | sed 's/--*/-/g' | sed 's/-$//' | cut -c1-40)"
 
       log "  [Worker $idx] PR 생성: $pr_branch"
 

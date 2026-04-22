@@ -388,6 +388,8 @@ vault_extract_transcript() {
   TRANSCRIPT_TOOL_COUNT="0"
   TRANSCRIPT_RECENT_COMMITS=""
 
+  # TRANSCRIPT_COMMITS/PRS/TOOL_COUNT는 외부 caller(tests/test-vault-transcript.sh)가 소비
+  # shellcheck disable=SC2034
   if [[ -n "$transcript_path" && -f "$transcript_path" ]]; then
     # v4.0: set -o pipefail 환경 대응. grep 매칭 없음(exit 1)이 파이프 실패로 전파되지 않도록 || true
     TRANSCRIPT_SESSION_START=$(head -1 "$transcript_path" | jq -r '.timestamp // empty' 2>/dev/null || true)

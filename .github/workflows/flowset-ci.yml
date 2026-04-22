@@ -1,0 +1,117 @@
+name: FlowSet CI
+
+# FlowSet v4.0 자체 CI (WI-A4)
+#
+# 설계 §5 :255-267 원본을 WI-A3(bats submodule) 전략과 정합시킨 버전:
+#   - 설계 §5 :260 shellcheck find 명령 → `-not -path "./tests/bats/*"` 추가 (submodule 상류 관리)
+#   - 설계 §5 :265 `sudo npm install -g bats` 제거 → `bash tests/bats/bin/bats` (submodule 경로)
+#   - 모든 checkout 단계에 `submodules: recursive` 필수 (없으면 tests/bats/ 미존재 → bats 실행 불가)
+#
+# 트리거: push(모든 브랜치) + pull_request(main 대상)
+# 4개 job 병렬 실행: shellcheck / bats / smoke / commit-check
+
+on:
+  push:
+    branches:
+      - main
+      - 'refactor/**'
+      - 'feature/**'
+      - 'fix/**'
+      - 'docs/**'
+      - 'chore/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  shellcheck:
+    name: shellcheck (set -euo pipefail 정합성)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y shellcheck
+
+      - name: Run shellcheck on all .sh files
+        # 설계 §5 :260 + WI-A4 수정: tests/bats/*는 submodule 상류 관리
+        run: |
+          find . -name "*.sh" \
+            -not -path "./.git/*" \
+            -not -path "./tests/bats/*" \
+            -print0 | xargs -0 shellcheck --severity=warning
+
+  bats:
+    name: bats core tests (16 @test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install jq (bats 테스트 내부 의존성)
+        run: sudo apt-get update -qq && sudo apt-get install -y jq
+
+      - name: Verify bats submodule initialized
+        run: test -f tests/bats/bin/bats
+
+      - name: Run bats core.bats
+        # 설계 §5 :265 수정: npm 대신 submodule 경로
+        run: bash tests/bats/bin/bats tests/bats_tests/core.bats
+
+  smoke:
+    name: bash smoke (126 + A3 17 = 143 assertion)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install jq
+        run: sudo apt-get update -qq && sudo apt-get install -y jq
+
+      - name: Run all bash smoke tests
+        # 전수 실행 — 하나라도 실패하면 CI 실패
+        run: |
+          set -e
+          bash tests/test-vault-transcript.sh
+          bash tests/run-smoke-WI-A1.sh
+          bash tests/run-smoke-WI-A2a.sh
+          bash tests/run-smoke-WI-A2b.sh
+          bash tests/run-smoke-WI-A2c.sh
+          bash tests/run-smoke-WI-A2d.sh
+          bash tests/run-smoke-WI-A2e.sh
+          bash tests/run-smoke-WI-A3.sh
+
+  commit-check:
+    name: commit message 형식 (WI-NNN-[type])
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify commit messages
+        # rules/wi-global.md §1: WI-NNN-[type] 한글 작업명
+        # 허용 예외: Merge/Revert/WI-chore(번호 없음)/WI-docs(번호 없음)
+        run: |
+          base_sha=$(git merge-base HEAD "origin/${{ github.base_ref }}")
+          fail=0
+          # %s = 커밋 제목 한 줄
+          while IFS= read -r msg; do
+            [[ -z "$msg" ]] && continue
+            # 정규식: WI-(숫자 또는 A2a 같은 영숫자)-type .+ / WI-chore .+ / WI-docs .+ / Merge / Revert
+            if echo "$msg" | grep -qE '^(WI-[0-9A-Za-z]+-(feat|fix|docs|style|refactor|test|chore|perf|ci|revert) .+|WI-(chore|docs) .+|Merge |Revert )'; then
+              echo "OK: $msg"
+            else
+              echo "FAIL: $msg"
+              fail=$((fail + 1))
+            fi
+          done < <(git log --format='%s' "$base_sha..HEAD")
+          if [ "$fail" -gt 0 ]; then
+            echo "::error::$fail commit message(s) violate WI-NNN-[type] format"
+            exit 1
+          fi

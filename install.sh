@@ -119,7 +119,7 @@ else
   echo "     Homebrew(macOS): brew install bash"
 fi
 
-# shellcheck / bats — 개발용(선택)
+# 개발용 도구(선택): shellcheck, bats
 if command -v shellcheck &> /dev/null; then
   echo "  ✅ shellcheck $(shellcheck --version 2>&1 | grep version | head -1 | awk '{print $2}')"
 else

@@ -10,8 +10,10 @@ export LC_ALL=en_US.UTF-8
 
 INPUT=$(cat 2>/dev/null || true)
 
-# 태스크 정보 추출
+# 태스크 정보 추출 (TASK_DESC는 향후 확장을 위한 참조 슬롯)
 TASK_SUBJECT=$(echo "$INPUT" | jq -r '.task_subject // ""' 2>/dev/null || echo "")
+# TASK_DESC는 evaluator 재실행 시 참조 예정 placeholder
+# shellcheck disable=SC2034
 TASK_DESC=$(echo "$INPUT" | jq -r '.task_description // ""' 2>/dev/null || echo "")
 
 # WI 번호 추출 (WI-NNN 패턴)

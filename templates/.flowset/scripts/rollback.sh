@@ -28,7 +28,8 @@ rollback_code() {
   log "코드 롤백 시작: $commit"
 
   # revert 브랜치 생성
-  local branch="fix/WI-revert-$(echo "$commit" | cut -c1-7)"
+  local branch
+  branch="fix/WI-revert-$(echo "$commit" | cut -c1-7)"
   git checkout main
   git pull origin main
   git checkout -b "$branch"
