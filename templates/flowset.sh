@@ -434,7 +434,8 @@ mkdir -p "$LOG_DIR"
 #==============================
 
 log() {
-  local msg="[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+  local msg
+  msg="[$(date '+%Y-%m-%d %H:%M:%S')] $1"
   echo "$msg"
   [[ -d "$LOG_DIR" ]] || mkdir -p "$LOG_DIR"
   echo "$msg" >> "$LOG_DIR/flowset.log"
@@ -908,10 +909,10 @@ suggest_relevant_files() {
 
 record_pattern() {
   # 워커 완료 후 성공/실패 패턴 기록 → 다음 워커가 학습
-  # $1: WI 이름, $2: result (merged|skipped|conflict|timeout), $3: files changed (comma-sep), $4: elapsed seconds
+  # $1: WI 이름, $2: result (merged|skipped|conflict|timeout), $3: files_list (comma-sep 문자열), $4: elapsed seconds
   local wi_name="$1"
   local result="$2"
-  local files="${3:-}"
+  local files_list="${3:-}"
   local elapsed="${4:-0}"
   mkdir -p "$RAG_DIR"
   local patterns_file="$RAG_DIR/patterns.md"
@@ -926,9 +927,7 @@ record_pattern() {
   domain=$(echo "$wi_name" | sed 's/WI-[0-9]*-[a-z]* //' | cut -c1-30)
 
   # 패턴 1줄 기록
-  local timestamp
-  timestamp=$(date '+%m-%d %H:%M')
-  echo "- ${result} | ${wi_type} | ${domain} | ${elapsed}s | ${files:-none}" >> "$patterns_file"
+  echo "- ${result} | ${wi_type} | ${domain} | ${elapsed}s | ${files_list:-none}" >> "$patterns_file"
 
   # 최근 50건만 유지 (오래된 패턴 자동 정리)
   if [[ -f "$patterns_file" ]] && [[ $(wc -l < "$patterns_file") -gt 50 ]]; then
@@ -937,7 +936,7 @@ record_pattern() {
 
   # v3.0: vault에도 패턴 기록
   vault_record "patterns" "iter-$(state_get loop_count).md" \
-    "- ${result} | ${wi_type} | ${domain} | ${elapsed}s | ${files:-none}" 2>/dev/null || true
+    "- ${result} | ${wi_type} | ${domain} | ${elapsed}s | ${files_list:-none}" 2>/dev/null || true
 }
 
 log_trace() {
@@ -948,7 +947,6 @@ log_trace() {
   mkdir -p .flowset/logs
 
   local cost="${iteration_cost:-0}"
-  local turns="${MAX_TURNS:-0}"
 
   echo "{\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"iter\":$(state_get loop_count),\"wi\":\"${wi_name}\",\"result\":\"${result}\",\"files\":${files_count},\"sec\":${elapsed},\"cost\":${cost}}" >> "$trace_file" 2>/dev/null || true
 
@@ -1250,7 +1248,8 @@ main() {
         local merge_result=0
         wait_for_merge "$worker_branch" || merge_result=$?
         safe_sync_main
-        local fc=$(git diff --stat HEAD~1 HEAD 2>/dev/null | tail -1 | grep -oE '[0-9]+ file' | grep -oE '[0-9]+' || echo "0")
+        local fc
+        fc=$(git diff --stat HEAD~1 HEAD 2>/dev/null | tail -1 | grep -oE '[0-9]+ file' | grep -oE '[0-9]+' || echo "0")
         if [[ $merge_result -eq 0 ]]; then
           mark_wi_done "$current_wi" || true
           record_pattern "$current_wi" "merged" "" "$iter_elapsed" || true

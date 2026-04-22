@@ -11,13 +11,15 @@ export LC_ALL=en_US.UTF-8
 # 2순위: .flowset/teams/{이름}.team 파일 (팀명 기반 등록)
 # 둘 다 없으면 빈 문자열 (solo 모드)
 
-# $1: stdin INPUT (hook JSON) — 하위 호환용, 현재 미사용
-# 결과: RESOLVED_TEAM_NAME 변수에 설정
+# $1: stdin INPUT (hook JSON) — 하위 호환용, 현재 미사용 (향후 JSON 파싱 확장 슬롯)
+# 결과: RESOLVED_TEAM_NAME 변수에 설정 (외부 caller가 소비)
 resolve_team_name() {
+  # shellcheck disable=SC2034 — input은 하위 호환 placeholder (JSON 파싱 미구현)
   local input="${1:-}"
 
   # 1순위: 환경변수
   if [[ -n "${TEAM_NAME:-}" ]]; then
+    # shellcheck disable=SC2034 — RESOLVED_TEAM_NAME은 외부 caller가 소비
     RESOLVED_TEAM_NAME="$TEAM_NAME"
     return 0
   fi
@@ -65,6 +67,7 @@ resolve_team_name() {
   fi
 
   # 미설정 → solo 모드
+  # shellcheck disable=SC2034 — RESOLVED_TEAM_NAME은 외부 caller가 소비
   RESOLVED_TEAM_NAME=""
   return 0
 }

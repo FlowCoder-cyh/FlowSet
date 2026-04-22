@@ -66,7 +66,7 @@ echo "=== A4-3: [evaluator R1] actions/checkout@v4에 submodules: recursive ==="
 recursive_count=$(grep -c 'submodules: recursive' "$CI_YML" || true)
 checkout_count=$(grep -cE 'uses: actions/checkout@v4' "$CI_YML" || true)
 # commit-check job은 submodules 불필요 (git log 검증만) → 3개 job에만 필요
-# shellcheck + bats + smoke = 3개
+# 대상 job: lint / bats / smoke (commit-check 제외)
 if (( recursive_count >= 3 )); then
   pass "submodules: recursive ${recursive_count}회 (≥3 — shellcheck/bats/smoke 커버)"
 else
@@ -153,12 +153,12 @@ echo "=== A4-9: bash -n 전체 shell 통과 (.bats/bats submodule 제외) ==="
 # .bats 파일은 find -name "*.sh" 확장자 필터로 자동 제외
 # tests/bats/* 제외는 submodule 내부 파일 (상류 bats-core 관리 소관)
 fail_count=0
-for f in $(find . -name "*.sh" -not -path "./.git/*" -not -path "./tests/bats/*"); do
+while IFS= read -r -d '' f; do
   if ! bash -n "$f" 2>/dev/null; then
     fail_count=$((fail_count + 1))
     echo "    문법 오류: $f"
   fi
-done
+done < <(find . -name "*.sh" -not -path "./.git/*" -not -path "./tests/bats/*" -print0)
 if (( fail_count == 0 )); then
   pass "전체 shell bash -n 통과 (오류 0건)"
 else

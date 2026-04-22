@@ -355,6 +355,7 @@ vault_extract_transcript() {
   TRANSCRIPT_TOOL_COUNT="0"
   TRANSCRIPT_RECENT_COMMITS=""
 
+  # shellcheck disable=SC2034 — TRANSCRIPT_COMMITS/PRS/TOOL_COUNT는 외부 caller(tests/test-vault-transcript.sh 등)가 소비
   if [[ -n "$transcript_path" && -f "$transcript_path" ]]; then
     TRANSCRIPT_SESSION_START=$(head -1 "$transcript_path" | jq -r '.timestamp // empty' 2>/dev/null || true)
     TRANSCRIPT_COMMITS=$(grep -oP 'WI-\d{3,4}(-\d+)?-\w+ [^"\\\\]+' "$transcript_path" 2>/dev/null | sort -u | head -15 || true)
