@@ -5,7 +5,11 @@ set -euo pipefail
 # 설계 §5 :214 4단계 흐름 + §5 :235 8개 중복 감지 시나리오 + §7 :302 reviews/approvals mkdir
 # 사용: bash tests/run-smoke-WI-B1.sh
 #
-# 누적 기준선: 180 + 40 = 220 assertion (WI-001 재캘리브레이션 후, WI-B1에서 41→40) + bats 16 @test
+# 누적 기준선 SSOT: `.github/workflows/flowset-ci.yml` smoke job name 참조
+#   CI 호출분(A4 미포함): test-vault 31 + A1 14 + A2a-e 81 + A3 17 + 001 40 = 183
+#   WI-B1 추가 후 CI SSOT: 183 + 27 = 210 assertion
+#   로컬 regression (A4 21 포함): 204 + 27 = 231 assertion
+#   bats core.bats: 16 @test (class 무관)
 
 export LANG=en_US.UTF-8
 export LC_ALL=en_US.UTF-8

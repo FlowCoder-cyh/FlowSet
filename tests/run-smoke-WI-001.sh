@@ -5,7 +5,9 @@ set -euo pipefail
 # 하위 호환 + 3종 class 분기 + migrate_prd_state_v1_to_v2 idempotency/atomicity/rollback
 # 사용: bash tests/run-smoke-WI-001.sh
 #
-# 누적 기준선 (WI-A4 시점): 180 assertion + bats 16 @test
+# 누적 기준선 SSOT: `.github/workflows/flowset-ci.yml` smoke job name 참조
+#   WI-A4 시점 실측: test-vault 31 + A1 14 + A2a-e 81 + A3 17 + A4 21 = 164 (순수 합산)
+#   CI 호출분(A4 미포함): 143 + 001 = 183 (이 smoke 추가 시)
 # 이 smoke는 WI-001 신규 구조만 검증. 누적 smoke 회귀는 run-smoke-WI-A4.sh가 담당.
 
 export LANG=en_US.UTF-8
