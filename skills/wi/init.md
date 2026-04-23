@@ -204,37 +204,105 @@ sed -i "s|^PROJECT_CLASS=.*|PROJECT_CLASS=\"${PROJECT_CLASS:-code}\"|" .flowsetr
 
 ### Step 3.5: ownership.json 동적 생성 (프로젝트 타입별 + class별)
 
-`.flowsetrc`의 `PROJECT_TYPE`을 기반으로 `.flowset/ownership.json`을 생성합니다.
+`.flowsetrc`의 `PROJECT_TYPE` + `PROJECT_CLASS`를 기반으로 `.flowset/ownership.json`을 생성합니다.
 프로젝트 구조에 맞는 팀 소유 디렉토리를 매핑합니다.
 
-**v4.0 PROJECT_CLASS 분기 (WI-001 게이트웨이)**:
-- `PROJECT_CLASS=code` (기본) → 기존 v3.x 로직 그대로 (frontend/backend/qa/devops/planning). **기존 프로젝트 동작 완전 동일**.
-- `PROJECT_CLASS=content` → [WI-B1에서 구현] writer/reviewer/approver/designer/shared 5개 역할. 현재는 `code` 템플릿으로 fallback.
-- `PROJECT_CLASS=hybrid` → [WI-B1에서 구현] code + content 공존, 팀명 중복 감지. 현재는 `code` 템플릿으로 fallback.
+**v4.0 PROJECT_CLASS 분기 (WI-001 게이트웨이 → WI-B1 완전 구현)**:
+- `PROJECT_CLASS=code` (기본) → frontend/backend/qa/devops/planning (v3.x 동일).
+- `PROJECT_CLASS=content` → writer/reviewer/approver/designer/shared 5개 역할 (설계 §3).
+- `PROJECT_CLASS=hybrid` → code 역할 + content 역할 공존. `ownership.json.teams[].class` 필드로 경로별 class 태깅. 팀명 중복(예: designer) 감지 시 재입력 루프.
 
-WI-001 범위에서는 **질문/필드 전달까지만** 구현. content/hybrid의 실제 팀 역할 분기는 WI-B1에서 확장되며, 그때까지 `code` 기본값으로 동작하여 기존 사용자에게 영향 없음.
+#### build_team_names() — class별 팀명 배열 빌드 (WI-B1)
 
 ```bash
 # 읽기
 source .flowsetrc
 PROJECT_CLASS="${PROJECT_CLASS:-code}"
 
-# case 블록은 validation 게이트 역할만 수행 (알 수 없는 class 값 거부 + 분기별 안내).
-# 실제 팀 매핑은 case 종료 **이후** 본체 테이블(아래 PROJECT_TYPE 매트릭스)에서 일괄 처리되며,
-# code/content/hybrid 3종 모두 현재는 동일한 code 매핑을 사용한다 (content/hybrid는 WI-B1에서 분기 확장).
+# 설계 §5 :214 (a) 가드 설정 — hybrid에서만 중복 감지 활성화
+skip_dup_check=0
+[[ "$PROJECT_CLASS" != "hybrid" ]] && skip_dup_check=1
+
+# validation 게이트 (WI-001 계약 유지) — 알 수 없는 class 값 즉시 거부
 case "$PROJECT_CLASS" in
-  code)
-    : # validation 통과 — 본체 테이블에서 code 매핑 적용
-    ;;
-  content|hybrid)
-    echo "ℹ️  PROJECT_CLASS=$PROJECT_CLASS: WI-B1(v4.0 Group β)에서 전용 분기 예정. 지금은 code 템플릿으로 fallback."
-    ;;
+  code|content|hybrid) ;;
   *)
     echo "ERROR: 알 수 없는 PROJECT_CLASS='$PROJECT_CLASS' (code|content|hybrid 중 선택)" >&2
     exit 1
     ;;
 esac
+
+# 설계 §5 :214 (b) code 역할 누적 (code + hybrid 공통)
+team_names=()
+if [[ "$PROJECT_CLASS" == "code" || "$PROJECT_CLASS" == "hybrid" ]]; then
+  team_names+=("frontend" "backend" "qa" "devops" "planning")
+  # hybrid 시 team-roles.md 동적 확장 질문 (design/data/mobile 중 선택)
+  if [[ "$PROJECT_CLASS" == "hybrid" ]]; then
+    read -r -p "team-roles.md 동적 확장(design/data/mobile) 중 추가할 역할? (공백 구분, 없으면 엔터): " extra_code
+    read -r -a extra_arr <<< "$extra_code"
+    # bash 4.3 이하 안전: 빈 배열 확장 대비 "${arr[@]-}"
+    (( ${#extra_arr[@]} > 0 )) && team_names+=("${extra_arr[@]}")
+  fi
+fi
+
+# 설계 §5 :214 (c) content 고정 5역 누적 (content + hybrid 공통)
+if [[ "$PROJECT_CLASS" == "content" || "$PROJECT_CLASS" == "hybrid" ]]; then
+  team_names+=("writer" "reviewer" "approver" "designer" "shared")
+fi
+
+# 설계 §7 :302 content/hybrid 시 reviews/ approvals/ 디렉토리 선행 생성
+# (`.flowset/reviews/{section}-{reviewer}.md`, `.flowset/approvals/{section}-{approver}.md` 증거 파일 저장소)
+if [[ "$PROJECT_CLASS" == "content" || "$PROJECT_CLASS" == "hybrid" ]]; then
+  mkdir -p .flowset/reviews .flowset/approvals
+fi
+
+# 설계 §5 :214 (d) 명시적 분기 구조 — hybrid 중복 감지 루프
+if [[ "$skip_dup_check" == "1" ]]; then
+  ownership_save  # code/content 단일 class: 검증 skip, 바로 JSON 저장
+else
+  # hybrid: 재시도 루프 (최대 3회, set -euo pipefail 안전 문법)
+  retry=0
+  max_retry=3
+  dups=""
+  while (( retry < max_retry )); do
+    dups=$(printf '%s\n' "${team_names[@]}" | sort | uniq -d)
+    [[ -z "$dups" ]] && break
+    for dup_name in $dups; do
+      read -r -p "중복된 '${dup_name}' 재입력(공백 구분, 예: ${dup_name}-code ${dup_name}-content): " new_names
+      # new_names(공백 구분 문자열) → 배열로 안전 분리 (shellcheck SC2086 회피)
+      read -r -a new_arr <<< "$new_names"
+      # 방어 1: 빈 입력 거부 (silent data loss 방지 — 엔터만 치면 dup_name 역할 완전 삭제됨)
+      if (( ${#new_arr[@]} == 0 )); then
+        echo "ERROR: 최소 1개 이상의 새 이름 입력 필요(현재 빈 입력)" >&2
+        retry=$((retry + 1))
+        continue 2  # 바깥 while 루프로 이동, 전체 재시도
+      fi
+      # 방어 2: 새 이름 자체 중복 감지 (designer-code designer-code 같은 입력 즉각 거부)
+      new_dups=$(printf '%s\n' "${new_arr[@]}" | sort | uniq -d)
+      if [[ -n "$new_dups" ]]; then
+        echo "ERROR: 새 이름 자체에 중복: $new_dups" >&2
+        retry=$((retry + 1))
+        continue 2
+      fi
+      # filter-rebuild: dup_name 요소 제거 (`"${arr[@]/pat}"`는 빈 문자열 대체지 제거 아님)
+      filtered=()
+      for name in "${team_names[@]}"; do
+        [[ -n "$name" && "$name" != "$dup_name" ]] && filtered+=("$name")
+      done
+      # bash 4.4+ 안전, 4.3 이하는 install.sh에서 bash 버전 체크
+      team_names=( "${filtered[@]}" "${new_arr[@]}" )
+    done
+    retry=$((retry + 1))  # set -e 안전 (((retry++))는 retry=0일 때 반환 0으로 종료 위험)
+  done
+  if [[ -n "$dups" ]]; then
+    echo "ERROR: 3회 연속 중복. 수동 수정 필요. ownership.json 생성 중단." >&2
+    exit 1
+  fi
+  ownership_save
+fi
 ```
+
+#### code class 매핑 (PROJECT_TYPE별)
 
 | PROJECT_TYPE | frontend | backend | qa | shared |
 |---|---|---|---|---|
@@ -244,14 +312,51 @@ esac
 | go | cmd/**, web/** | internal/**, pkg/** | *_test.go (동일 디렉토리) | go.mod, go.sum |
 | java | src/main/resources/** | src/main/java/** | src/test/** | build.gradle, pom.xml |
 
-**생성 절차:**
-1. `PROJECT_TYPE` 확인
-2. 위 매핑에 따라 JSON 생성
-3. `crossTeamReview`는 계약 파일 + 스키마 파일 + 공유 컴포넌트 경로 자동 매핑
-4. `.flowset/ownership.json`에 저장
-
 **devops**는 항상 `.github/**`, `.claude/**`, `.flowset/**`
 **planning**은 항상 `docs/**`, `wireframes/**`
+
+#### content class 매핑 (설계 §3, PROJECT_TYPE 무관)
+
+| 역할 | 소유 디렉토리 | 권한 |
+|------|-------------|------|
+| writer | `docs/drafts/**`, `docs/research/**`, `research/**` | 초안 작성·수정 |
+| reviewer | `docs/reviews/**`, `feedback/**` | 리뷰·코멘트 |
+| approver | `docs/approved/**`, `CHANGELOG.md`, `RELEASE.md` | 최종 승인 |
+| designer | `design/**`, `wireframes/**`, `assets/**` | 디자인 자산 |
+| shared | `README.md`, `docs/index.md`, `.flowset/**` | 전 역할 수정 가능 |
+
+#### hybrid class 매핑 (code + content 공존 + `class` 필드)
+
+hybrid는 code 5개 역할 + content 5개 역할을 모두 등록하며, 각 팀에 `class` 필드를 붙여 경로별 class를 명시합니다.
+
+**designer 충돌 해결**: code class의 designer(`src/design-system/**` 같은 코드)와 content class의 designer(`design/**`, `wireframes/**` 같은 자산)는 서로 다른 역할이므로 hybrid 프로젝트에서는 `designer-code`/`designer-content`로 분리 재입력 필요. 위 중복 감지 루프가 이를 자동 강제.
+
+```json
+{
+  "teams": {
+    "writer":   { "paths": ["docs/**"], "class": "content" },
+    "reviewer": { "paths": ["docs/reviews/**"], "class": "content" },
+    "approver": { "paths": ["docs/approved/**", "CHANGELOG.md"], "class": "content" },
+    "designer-content": { "paths": ["design/**", "wireframes/**"], "class": "content" },
+    "frontend": { "paths": ["src/app/**", "src/components/**"], "class": "code" },
+    "backend":  { "paths": ["src/api/**", "src/lib/**"], "class": "code" },
+    "qa":       { "paths": ["tests/**", "e2e/**"], "class": "code" }
+  }
+}
+```
+
+#### set -euo pipefail 호환 필수 사항 (2건 — Group α 학습 전이)
+
+1. `((retry++))` 대신 `retry=$((retry + 1))` (bash gotcha — `retry=0`일 때 `((retry++))`는 반환값 0으로 `set -e`에서 스크립트 종료)
+2. 배열 요소 제거 시 `"${arr[@]/pattern}"` 사용 금지 — 이 문법은 매칭 요소를 **빈 문자열로 대체**하며 요소 제거가 아님. 정확한 제거는 **for-loop filter-rebuild 패턴** 사용.
+
+#### 생성 절차 요약
+
+1. `PROJECT_CLASS` + `PROJECT_TYPE` 확인
+2. 위 `build_team_names()` 블록 실행 (team_names 배열 빌드 + 중복 감지 + mkdir)
+3. team_names 확정 후 class별 매핑 테이블에서 경로 조회하여 JSON 생성
+4. `crossTeamReview`는 계약 파일 + 스키마 파일 + 공유 컴포넌트 경로 자동 매핑
+5. `.flowset/ownership.json`에 저장
 
 프로젝트 실제 디렉토리 구조를 `tree -L 2` 또는 `ls`로 확인한 후, 존재하는 디렉토리만 포함합니다. 매핑 테이블에 없는 구조면 사용자에게 질문합니다.
 

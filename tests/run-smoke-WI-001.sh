@@ -62,21 +62,21 @@ else
 fi
 
 echo ""
-echo "=== WI-001-3: skills/wi/init.md Step 3.5 class별 분기 ==="
+echo "=== WI-001-3: skills/wi/init.md Step 3.5 class별 분기 (validation 게이트) ==="
 # case "$PROJECT_CLASS" in ... 블록 존재
 if grep -qE 'case "\$PROJECT_CLASS" in' skills/wi/init.md; then
   pass "Step 3.5에 case \"\$PROJECT_CLASS\" in 분기 존재"
 else
   fail "PROJECT_CLASS 분기 누락"
 fi
-# 3개 class 전부 분기
-for class in code "content|hybrid"; do
-  if grep -qE "^  ${class}\\)" skills/wi/init.md; then
-    pass "case 분기: ${class})"
-  else
-    fail "case 분기 누락: ${class})"
-  fi
-done
+# 3개 class 전부 validation (WI-001 단일 case 또는 WI-B1 확장된 분리 case 둘 다 수용)
+# 핵심 불변: code / content / hybrid 3종이 validation 블록 내에 존재해야 함
+if grep -qE 'code\|content\|hybrid\)' skills/wi/init.md || \
+   ( grep -qE '^  code\)' skills/wi/init.md && grep -qE '^  content\|hybrid\)' skills/wi/init.md ); then
+  pass "case 분기: code/content/hybrid 전수 validation (WI-001 단일 또는 WI-B1 분리 case 수용)"
+else
+  fail "case 분기에 3종 class validation 누락"
+fi
 # 알 수 없는 class → exit 1
 if grep -qE 'ERROR: 알 수 없는 PROJECT_CLASS' skills/wi/init.md; then
   pass "알 수 없는 class 값 거부 (exit 1)"
@@ -296,12 +296,14 @@ done
 
 echo ""
 echo "=== WI-001-6: 학습 전이 회귀 방지 (패턴 2/4/5/19 재검증) ==="
-# 패턴 2: ((var++)) 금지 — prd.md/init.md 추가 블록에 사용 여부
-# grep -cE는 파일마다 "file:count" 라인 출력. IFS=: 파싱 후 합산 (shellcheck SC2002/SC2034 회피)
+# 패턴 2: ((var++)) 금지 — prd.md/init.md 실제 사용 (주석/백틱 anti-example 제외)
+# v4.0에서 markdown 문서에 anti-example이 백틱·인라인 주석으로 기록되므로 false positive 회피 필수
+# 제거 순서: (1) 백틱 ` ... ` 제거 (2) 공백+# 이후 라인 끝까지 주석 제거
 total_bad=0
-while IFS=: read -r _ c; do
+for f in skills/wi/prd.md skills/wi/init.md; do
+  c=$(sed 's/`[^`]*`//g' "$f" | sed -E 's/[[:space:]]+#.*$//' | grep -cE '\(\([[:alnum:]_]+\+\+\)\)' || true)
   total_bad=$((total_bad + c))
-done < <(grep -cE '\(\([[:alnum:]_]+\+\+\)\)' skills/wi/prd.md skills/wi/init.md 2>/dev/null || true)
+done
 if (( total_bad == 0 )); then
   pass "패턴 2: ((var++)) 사용 0건 (set -e 회귀 방지)"
 else
