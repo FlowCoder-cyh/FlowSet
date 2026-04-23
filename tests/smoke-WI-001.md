@@ -1,6 +1,6 @@
 # Smoke Tests — WI-001 (v4.0 PROJECT_CLASS 게이트웨이)
 
-WI-001 변경이 기존 누적 smoke(180 assertion) + bats(16 @test) 전수를 깨뜨리지 않고,
+WI-001 변경이 기존 누적 smoke (CI SSOT 143 assertion @ WI-A3 완료 시점, 로컬 regression 164 @ WI-A4 포함) + bats(16 @test) 전수를 깨뜨리지 않고,
 `.flowsetrc` / `skills/wi/init.md` / `skills/wi/prd.md`에 신설된 PROJECT_CLASS 플로우와
 `migrate_prd_state_v1_to_v2()` 함수의 계약(idempotent / atomic / rollback)을 실측 검증.
 
@@ -77,7 +77,10 @@ bash tests/run-smoke-WI-001.sh
   ✅ WI-001 ALL SMOKE PASSED
 ```
 
-**전체 누적**: 기존 180 + WI-001 smoke 40 = **220 assertion** (WI-B1 진입 시 2건 false positive 제거로 41 → 40)
+**전체 누적 (SSOT = `.github/workflows/flowset-ci.yml` job name)**:
+- **CI SSOT**: 143 (WI-A3 완료 시점, A4는 CI 미호출) + WI-001 40 = **183 assertion**
+- **로컬 regression (A4 포함)**: 164 + 40 = **204 assertion**
+- WI-001 smoke 수 41 → 40은 WI-B1 진입 시 validation case 통합에 따른 재캘리브레이션 (per-class 2건 → combined 1건)
 bats core.bats는 v4.0 Group α 종료 시점 그대로 **16 @test** (WI-001은 bats 대상 아님 — 후속 WI에서 필요 시 추가).
 
 ---

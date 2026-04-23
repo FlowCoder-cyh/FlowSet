@@ -1,6 +1,6 @@
 # Smoke Tests — WI-B1 (/wi:init content/hybrid 분기)
 
-WI-B1 변경이 기존 누적 smoke(221 assertion)를 깨뜨리지 않고, `skills/wi/init.md` Step 3.5에 신설된
+WI-B1 변경이 기존 누적 smoke (CI SSOT 183 assertion @ WI-001 완료 시점, 로컬 regression 204 @ WI-A4 포함)를 깨뜨리지 않고, `skills/wi/init.md` Step 3.5에 신설된
 class별 ownership.json 분기(설계 §5 :214 4단계 흐름)와 `mkdir -p .flowset/reviews .flowset/approvals`(§7 :302)를 실측 검증.
 
 **실행 환경**: jq 1.8.1, bash 5.2.37 (MSYS2 Git Bash, Windows 11)
