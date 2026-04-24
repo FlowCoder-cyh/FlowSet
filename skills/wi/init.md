@@ -169,6 +169,16 @@ mkdir -p ./.flowset/contracts
 cp "$TEMPLATE_DIR/.flowset/contracts/api-standard.md" ./.flowset/contracts/api-standard.md
 cp "$TEMPLATE_DIR/.flowset/contracts/data-flow.md" ./.flowset/contracts/data-flow.md
 cp "$TEMPLATE_DIR/.flowset/contracts/sprint-template.md" ./.flowset/contracts/sprint-template.md
+
+# v4.0 WI-B3: content/hybrid 시 content class 전용 계약 2건 추가 복사 (설계 §5 :221-222, §7 :304)
+# - style-guide.md: 톤/문체/heading 레벨/코드블록 언어/용어/출처 규칙
+# - review-rubric.md: reviewer 5축 채점표(사실성/완결성/명료성/일관성/출처)
+# code 단일 class는 두 파일 불필요 (code 계약은 api-standard.md + data-flow.md로 충분)
+if [[ "${PROJECT_CLASS:-code}" == "content" || "${PROJECT_CLASS:-code}" == "hybrid" ]]; then
+  cp "$TEMPLATE_DIR/.flowset/contracts/style-guide.md"  ./.flowset/contracts/style-guide.md
+  cp "$TEMPLATE_DIR/.flowset/contracts/review-rubric.md" ./.flowset/contracts/review-rubric.md
+fi
+
 cp "$TEMPLATE_DIR/.flowset/scripts/task-completed-eval.sh" ./.flowset/scripts/task-completed-eval.sh
 mkdir -p ./.flowset/eval-results
 
