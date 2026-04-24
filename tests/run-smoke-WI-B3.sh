@@ -9,8 +9,8 @@ set -euo pipefail
 # 사용: bash tests/run-smoke-WI-B3.sh
 #
 # 누적 기준선 SSOT: `.github/workflows/flowset-ci.yml` smoke job name 참조
-#   CI 호출분(A4 미포함): test-vault 31 + A1 14 + A2a-e 81 + A3 17 + 001 40 + B1 27 + B2 36 + B3 32 = 278 assertion
-#   로컬 regression (A4 21 포함): 278 + 21 = 299 assertion
+#   CI 호출분(A4 미포함): test-vault 31 + A1 14 + A2a-e 81 + A3 17 + 001 40 + B1 27 + B2 36 + B3 35 = 281 assertion
+#   로컬 regression (A4 21 포함): 281 + 21 = 302 assertion
 #   bats core.bats: 16 @test (class 무관)
 
 export LANG=en_US.UTF-8
@@ -143,11 +143,30 @@ else
   fail "review-rubric: 이중 게이트 의도 누락"
 fi
 
-# 5d. 가중 총점 예시 산술 정확성 (line 162): 9.375 표기
+# 5d. 가중 총점 예시 산술 정확성 (증적 양식 예시): 9.375 표기
 if grep -qE '= \*\*9\.375\*\*' "$RUBRIC_MD"; then
-  pass "review-rubric: 가중 총점 예시 산술 정확 (9.375)"
+  pass "review-rubric: 증적 양식 가중 총점 산술 정확 (9.375)"
 else
-  fail "review-rubric: 가중 총점 예시 산술 오류 (9.375 미표기)"
+  fail "review-rubric: 증적 양식 산술 오류 (9.375 미표기)"
+fi
+
+# 5e. 반례 1/2/3 수치 산술 정확성 (이중 AND 게이트 섹션)
+# 반례 1: 총점 7.65 (최소 통과 경계), 반례 3: 총점 6.65 (이중 게이트 동시 작동)
+if grep -qE '= \*\*7\.65\*\* → PASS' "$RUBRIC_MD"; then
+  pass "review-rubric: 반례 1 총점 산술 정확 (7.65 PASS)"
+else
+  fail "review-rubric: 반례 1 총점 표기 오류"
+fi
+if grep -qE '= \*\*6\.65\*\*' "$RUBRIC_MD"; then
+  pass "review-rubric: 반례 3 총점 산술 정확 (6.65 REVISE)"
+else
+  fail "review-rubric: 반례 3 총점 표기 오류 (6.65 미표기)"
+fi
+# 반례 2는 총점 이전 탈락이므로 "축 임계값" 키워드만 검증
+if grep -qE '축 3 임계값\(7\.0\) 미달' "$RUBRIC_MD"; then
+  pass "review-rubric: 반례 2 축 임계 탈락 명시 (총점 이전)"
+else
+  fail "review-rubric: 반례 2 탈락 경로 누락"
 fi
 
 # 6. 증적 파일 양식 2종 (reviews/ + approvals/)

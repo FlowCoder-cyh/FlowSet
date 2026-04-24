@@ -40,11 +40,11 @@ WI-B3 변경이 기존 누적 smoke(SSOT = `.github/workflows/flowset-ci.yml` sm
 | 블록 | 주제 | Assertion |
 |------|------|-----------|
 | WI-B3-1 | style-guide.md 핵심 섹션 (파일 존재 / 적용 대상 / 10섹션 / H5-H6 / 코드블록 / 출처 / stop-rag 연계) | 7 |
-| WI-B3-2 | review-rubric.md 5축 채점표 (파일 / 5축 키워드 / 축별 섹션 / 가중치 100% / 통과기준 7.5 / 반올림 규칙 / 이중 AND 게이트 / 예시 산술 9.375 / 증적 2종 / 익명금지 / 후속 WI) | 11 |
+| WI-B3-2 | review-rubric.md 5축 채점표 (파일 / 5축 키워드 / 축별 섹션 / 가중치 100% / 통과기준 7.5 / 반올림 규칙 / 이중 AND 게이트 / 증적 예시 9.375 / 반례 1 PASS 7.65 / 반례 2 축 임계 탈락 / 반례 3 REVISE 6.65 / 증적 2종 / 익명금지 / 후속 WI) | 14 |
 | WI-B3-3 | init.md Step 3 조건부 cp (if 블록 / style cp / rubric cp / code 불필요 주석 / 설계 참조) | 5 |
 | WI-B3-4 | 학습 전이 회귀 방지 (패턴 2 + 패턴 3, 2개 파일 × 2패턴) | 4 |
 | WI-B3-5 | init.md Step 3 실측 (가짜 template + 실제 template, 5 시나리오) | 5 |
-| **합계** | | **32** |
+| **합계** | | **35** |
 
 ### 실측 시나리오 (WI-B3-5)
 
@@ -68,14 +68,14 @@ bash tests/run-smoke-WI-B3.sh
 
 **예상 출력 요약**:
 ```
-  PASS: 32
+  PASS: 35
   FAIL: 0
   ✅ WI-B3 ALL SMOKE PASSED
 ```
 
 **전체 누적 (SSOT = `.github/workflows/flowset-ci.yml` smoke job name)**:
-- **CI SSOT**: test-vault 31 + A1 14 + A2a-e 81 (13+13+15+16+24) + A3 17 + 001 40 + B1 27 + B2 36 + **B3 32** = **278 assertion** (A4는 CI 미호출, 순수 meta-smoke)
-- **로컬 regression (A4 포함)**: 278 + 21 = **299 assertion**
+- **CI SSOT**: test-vault 31 + A1 14 + A2a-e 81 (13+13+15+16+24) + A3 17 + 001 40 + B1 27 + B2 36 + **B3 35** = **281 assertion** (A4는 CI 미호출, 순수 meta-smoke)
+- **로컬 regression (A4 포함)**: 281 + 21 = **302 assertion**
 - **bats core.bats**: 16 @test (class 무관)
 
 ---
