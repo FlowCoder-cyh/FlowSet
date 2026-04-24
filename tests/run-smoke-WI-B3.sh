@@ -9,8 +9,8 @@ set -euo pipefail
 # 사용: bash tests/run-smoke-WI-B3.sh
 #
 # 누적 기준선 SSOT: `.github/workflows/flowset-ci.yml` smoke job name 참조
-#   CI 호출분(A4 미포함): test-vault 31 + A1 14 + A2a-e 81 + A3 17 + 001 40 + B1 27 + B2 36 + B3 29 = 275 assertion
-#   로컬 regression (A4 21 포함): 275 + 21 = 296 assertion
+#   CI 호출분(A4 미포함): test-vault 31 + A1 14 + A2a-e 81 + A3 17 + 001 40 + B1 27 + B2 36 + B3 32 = 278 assertion
+#   로컬 regression (A4 21 포함): 278 + 21 = 299 assertion
 #   bats core.bats: 16 @test (class 무관)
 
 export LANG=en_US.UTF-8
@@ -127,6 +127,27 @@ if grep -qE '통과 기준' "$RUBRIC_MD" && grep -qE '7\.5' "$RUBRIC_MD"; then
   pass "review-rubric: 통과 기준 명시 (임계값 + 가중 총점 ≥ 7.5)"
 else
   fail "review-rubric: 통과 기준 누락"
+fi
+
+# 5b. 반올림 규칙 명시 (소수 셋째 자리)
+if grep -qE '반올림 규칙' "$RUBRIC_MD" && grep -qE '셋째 자리' "$RUBRIC_MD"; then
+  pass "review-rubric: 반올림 규칙 명시 (소수 셋째 자리)"
+else
+  fail "review-rubric: 반올림 규칙 누락"
+fi
+
+# 5c. 이중 AND 게이트 의도 명시 (반례 3건으로 작동 증명)
+if grep -qE '이중 AND 게이트' "$RUBRIC_MD" && grep -qE '반례' "$RUBRIC_MD"; then
+  pass "review-rubric: 이중 AND 게이트 의도 + 반례 명시"
+else
+  fail "review-rubric: 이중 게이트 의도 누락"
+fi
+
+# 5d. 가중 총점 예시 산술 정확성 (line 162): 9.375 표기
+if grep -qE '= \*\*9\.375\*\*' "$RUBRIC_MD"; then
+  pass "review-rubric: 가중 총점 예시 산술 정확 (9.375)"
+else
+  fail "review-rubric: 가중 총점 예시 산술 오류 (9.375 미표기)"
 fi
 
 # 6. 증적 파일 양식 2종 (reviews/ + approvals/)
