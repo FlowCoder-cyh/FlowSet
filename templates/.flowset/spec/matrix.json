@@ -87,7 +87,24 @@
   "_schema_hybrid": {
     "_required_fields": ["schema_version", "class", "entities", "sections"],
     "_class_value": "hybrid",
-    "_comment": "code 영역(entities)과 content 영역(sections)을 단일 파일에 동시 보유. Stop hook은 ownership.json.teams[].class로 변경 파일 경로를 분류한 뒤 entities 또는 sections 검증으로 라우팅 (설계 §4 :158-181, :172-181)."
+    "_comment": "code 영역(entities)과 content 영역(sections)을 단일 파일에 동시 보유. Stop hook은 ownership.json.teams[].class로 변경 파일 경로를 분류한 뒤 entities 또는 sections 검증으로 라우팅 (설계 §4 :158-181, :172-181).",
+    "_entities_reference": "entities 영역은 _schema_code.entities_example 그대로 적용 — CRUD 4셀 + permissions(role×CRUD) + type_ssot + endpoints + gherkin/tests + status 4셀 모두 보유 의무. verify_matrix_cells(class=hybrid)가 entities 누락 검출.",
+    "_sections_reference": "sections 영역은 _schema_content.sections_example 그대로 적용 — draft/review/approve 3셀 + sources + completeness_checklist + roles 권한 매핑(writer/reviewer/approver) 모두 보유 의무. verify_matrix_cells(class=hybrid)가 sections 누락도 검출.",
+    "example_root_skeleton": {
+      "schema_version": "v2",
+      "class": "hybrid",
+      "auth_framework": "next-auth",
+      "auth_patterns": ["getServerSession\\(", "auth\\(\\)"],
+      "entities": {
+        "_comment": "각 entity는 _schema_code.entities_example.Leave 형태",
+        "Leave": "<see _schema_code.entities_example.Leave>"
+      },
+      "sections": {
+        "_comment": "각 section은 _schema_content.sections_example.\"3.2-User-Flow\" 형태",
+        "3.2-User-Flow": "<see _schema_content.sections_example.\"3.2-User-Flow\">"
+      }
+    },
+    "_generation_flow": "generate_code_matrix hybrid → entities + class=hybrid 생성 → generate_hybrid_merge_content → sections 병합(class은 보존). prd.md Step 4.M.c 참조."
   },
 
   "_init_template_note": "이 파일은 install.sh가 .flowset/spec/matrix.json으로 직접 cp하지 않습니다 — /wi:prd Step 4가 PROJECT_CLASS에 맞춰 동적 생성합니다. 이 파일은 schema 참조용 SSOT입니다.",

@@ -31,7 +31,7 @@ WI-C1 변경이 기존 누적 smoke(SSOT = `.github/workflows/flowset-ci.yml` sm
    - 후속 6 WI(C2/C3-code/C3-content/C4/C5/C6) consumers 명시
    - `install.sh`가 cp하지 않음 — `/wi:prd`가 PROJECT_CLASS에 따라 동적 생성
 5. **`.github/workflows/flowset-ci.yml`** smoke job에 `run-smoke-WI-C1.sh` 추가
-6. **`tests/run-smoke-WI-C1.sh`** 신규 (46 assertion, 정적 + 4 idempotency 실측 시나리오)
+6. **`tests/run-smoke-WI-C1.sh`** 신규 (56 assertion, 정적 + 4 idempotency 실측 시나리오 + 2차 평가 회귀 차단 10건)
 
 ---
 
@@ -50,13 +50,13 @@ WI-C1 변경이 기존 누적 smoke(SSOT = `.github/workflows/flowset-ci.yml` sm
 
 | 블록 | 주제 | Assertion |
 |------|------|-----------|
-| WI-C1-1 | prd.md Step 2.5 Role 추출 (헤더 / Step 시퀀스 / 한글·영문 키워드 / detect_auth_framework / 5 framework / content 분기) | 7 |
-| WI-C1-2 | prd.md Step 4 매트릭스 셀 의무화 (확장 헤더 / 3개 generate 함수 / verify_matrix_cells / CRUD 4셀 / 3셀 / case 분기 / SSOT 단일성 / pain point) | 9 |
+| WI-C1-1 | prd.md Step 2.5 Role 추출 (헤더 / Step 시퀀스 / 한글·영문 키워드 / detect_auth_framework / 5 framework / 표↔함수 정합 / Python v4.0 범위 외 / content 분기) | 9 |
+| WI-C1-2 | prd.md Step 4 매트릭스 셀 의무화 (확장 헤더 / 4개 generate 함수 / class 인자화 / class 동적 set / hybrid stub 차단 / verify 정의 / verify 실 호출 / hybrid 분기 entities+sections / CRUD 4셀 / 3셀 / case 분기 2단계 / SSOT 단일성 / pain point) | 14 |
 | WI-C1-3 | v3 다운그레이드 방어 (정규식 v2-v9 / 기존 == "v2" 잔존 없음 / 주석 근거) | 3 |
-| WI-C1-4 | matrix.json 템플릿 SSOT (파일 존재 / 유효 JSON / schema_version / class / 3-class schema / CRUD 4셀 / status / draft·review·approve / 5 framework / consumers / v3 주석 / 동적 생성) | 12 |
+| WI-C1-4 | matrix.json 템플릿 SSOT (파일 존재 / 유효 JSON / schema_version / class / 3-class schema / CRUD 4셀 / status / draft·review·approve / 5 framework / consumers / v3 주석 / 동적 생성 / hybrid example_root / hybrid reference / hybrid 생성 흐름) | 15 |
 | WI-C1-5 | migrate 함수 v2~v9 idempotency 실측 (함수 추출 / v2 idempotent / v3 방어 / .v1.bak 미생성 / 미래 필드 보존 / v9 경계 / v10 경계) | 10 |
 | WI-C1-6 | 학습 전이 회귀 방지 (패턴 2/3/4/19/23) | 5 |
-| **합계** | | **46** |
+| **합계** | | **56** |
 
 ### 실측 시나리오 (WI-C1-5)
 
@@ -79,14 +79,14 @@ bash tests/run-smoke-WI-C1.sh
 
 **예상 출력 요약**:
 ```
-  PASS: 46
+  PASS: 56
   FAIL: 0
   ✅ WI-C1 ALL SMOKE PASSED
 ```
 
 **전체 누적 (SSOT = `.github/workflows/flowset-ci.yml` smoke job name)**:
-- **CI SSOT**: test-vault 31 + A1 14 + A2a-e 81 (13+13+15+16+24) + A3 17 + 001 40 + B1 27 + B2 36 + B3 35 + **C1 46** = **327 assertion** (A4는 CI 미호출, 순수 meta-smoke)
-- **로컬 regression (A4 포함)**: 327 + 21 = **348 assertion**
+- **CI SSOT**: test-vault 31 + A1 14 + A2a-e 81 (13+13+15+16+24) + A3 17 + 001 40 + B1 27 + B2 36 + B3 35 + **C1 56** = **337 assertion** (A4는 CI 미호출, 순수 meta-smoke)
+- **로컬 regression (A4 포함)**: 337 + 21 = **358 assertion**
 - **bats core.bats**: 16 @test (class 무관)
 
 ---
@@ -98,9 +98,15 @@ bash tests/run-smoke-WI-C1.sh
 | Step 시퀀스 0→1→2→2.5→3→3.5→4→5→6 | 순서 어긋남 시 WI-C1-1 실패 |
 | Role 키워드 한글·영문 6+6 | 키워드 누락 시 WI-C1-1 실패 |
 | auth_framework 5종 매핑 | 1종 누락 시 WI-C1-1 + WI-C1-4 실패 |
-| Step 4 매트릭스 진입점 case 분기 | 3-class 분기 손상 시 WI-C1-2 실패 |
+| **표↔함수 정합** (5종 일관, Python 잔존 없음) | 표↔함수 불일치 회귀 시 WI-C1-1 실패 |
+| Step 4 매트릭스 진입점 case 분기 (2단계 hybrid) | 3-class 분기 손상 시 WI-C1-2 실패 |
+| **`generate_code_matrix` class 인자화** (하드코딩 차단) | `class: "code"` 하드코딩 회귀 시 WI-C1-2 실패 |
+| **`generate_hybrid_merge_content` 함수 정의** (stub 차단) | 함수 정의 누락 시 WI-C1-2 실패 (CRITICAL) |
+| **`verify_matrix_cells` 실 호출** (`\|\| exit 1`, prose-only 차단) | 호출 누락 시 WI-C1-2 실패 (CRITICAL) |
+| **`verify_matrix_cells` hybrid 분기** (entities + sections 둘 다) | 부분 검증 회귀 시 WI-C1-2 실패 |
 | v3 다운그레이드 방어 정규식 | `== "v2"` 회귀 시 WI-C1-3 + WI-C1-5 실패 |
 | matrix.json 3-class schema reference | 스키마 단순화/누락 시 WI-C1-4 실패 |
+| **`_schema_hybrid` example_root_skeleton + reference** | hybrid 모호화 회귀 시 WI-C1-4 실패 |
 | migrate 함수 v2~v9 idempotency | jq 함수 손상 시 WI-C1-5 실패 |
 | SSOT 단일성 (rubric 가중치 직접 직렬화 거부) | matrix.json에 가중치 잘못 추가 시 WI-C1-2 실패 |
 | 후속 WI 연계 (C2/C3-code/C3-content/C4/C5/C6 consumers) | Group γ 진입 경로 손상 시 WI-C1-4 실패 |

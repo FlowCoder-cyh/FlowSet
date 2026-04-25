@@ -98,6 +98,21 @@ else
   fail "auth_framework 매핑 부족 ($fw_hit/5)"
 fi
 
+# 4b. 2차 평가 이슈: 표 ↔ 함수 정합성 — 표에 5종만, Python 행은 v4.0 범위 외로 명시
+# 표는 5줄(헤더 + 구분선 + 5 framework) 형식. requirements.txt/pyproject.toml 행이 없어야 함
+if grep -qE '`requirements\.txt` / `pyproject\.toml`' "$PRD_MD"; then
+  fail "표↔함수 불일치: 표에 Python 행 잔존 (함수 본체에는 분기 없음)"
+else
+  pass "표↔함수 정합: 표에서 Python 행 제거 (5종 일관)"
+fi
+# Python은 v4.0 범위 외 명시 + 커스텀 수동 추가 경로 안내
+if grep -qE 'Python 기반 auth.*v4\.0 범위 외' "$PRD_MD" && \
+   grep -qE 'Step 2\.5\.c 커스텀' "$PRD_MD"; then
+  pass "Python auth는 v4.0 범위 외 명시 + Step 2.5.c 커스텀 경로 안내"
+else
+  fail "Python 범위 외 명시 누락 (표↔함수 정합 정당화 부족)"
+fi
+
 # 5. content class 분기 (Step 2.5.e) — auth_patterns skip
 if grep -qE 'PROJECT_CLASS:-code.*== "content"' "$PRD_MD" && \
    grep -qE 'auth 검사 대상 아님' "$PRD_MD"; then
@@ -116,11 +131,25 @@ else
   fail "Step 4 확장 섹션 누락"
 fi
 
-# 2. generate_code_matrix() 함수
+# 2. generate_code_matrix() 함수 (class 인자 받음)
 if grep -qE '^generate_code_matrix\(\) \{' "$PRD_MD"; then
   pass "generate_code_matrix() 함수 정의"
 else
   fail "generate_code_matrix 함수 누락"
+fi
+
+# 2b. 2차 평가 이슈: generate_code_matrix가 class를 인자로 받도록 (hybrid 분기에서 class="hybrid" 호출 시 결과 정합)
+if grep -qE 'local class_arg="\$\{1:-code\}"' "$PRD_MD"; then
+  pass "generate_code_matrix: class를 1번째 인자로 받음 (hybrid 호출 정합)"
+else
+  fail "generate_code_matrix class 인자화 누락"
+fi
+# 2c. jq에 --arg class_arg 전달 + class: \$class_arg 사용 (하드코딩 거부)
+if grep -qE -- '--arg class_arg "\$class_arg"' "$PRD_MD" && \
+   grep -qE 'class: \$class_arg' "$PRD_MD"; then
+  pass "generate_code_matrix: jq에 class_arg 전달 + class: \$class_arg (\"code\" 하드코딩 회귀 차단)"
+else
+  fail "generate_code_matrix class 동적 set 누락 (하드코딩 회귀 위험)"
 fi
 
 # 3. generate_content_matrix() 함수
@@ -130,11 +159,33 @@ else
   fail "generate_content_matrix 함수 누락"
 fi
 
+# 3b. 2차 평가 이슈: generate_hybrid_merge_content() 함수 정의 (호출만 하고 정의 없는 stub 차단)
+if grep -qE '^generate_hybrid_merge_content\(\) \{' "$PRD_MD"; then
+  pass "generate_hybrid_merge_content() 함수 정의 (hybrid 분기 stub 차단)"
+else
+  fail "generate_hybrid_merge_content 함수 정의 누락 (CRITICAL: hybrid 분기 stub)"
+fi
+
 # 4. verify_matrix_cells() 함수
 if grep -qE '^verify_matrix_cells\(\) \{' "$PRD_MD"; then
   pass "verify_matrix_cells() 함수 정의 (생성 직후 self-check)"
 else
   fail "verify_matrix_cells 함수 누락"
+fi
+
+# 4b. 2차 평가 이슈: verify_matrix_cells가 case 진입점에서 실제 호출 (prose만 있고 호출 없는 안전장치 차단)
+if grep -qE '^verify_matrix_cells \|\| exit 1' "$PRD_MD"; then
+  pass "verify_matrix_cells 실 호출 (case 진입점 || exit 1, prose-only 회귀 차단)"
+else
+  fail "verify_matrix_cells 실 호출 누락 (CRITICAL: 안전장치가 동작하지 않음)"
+fi
+
+# 4c. 2차 평가 이슈: hybrid case에서 entities + sections 둘 다 검증 (verify_matrix_cells의 hybrid 분기)
+if grep -qE 'hybrid CRUD 셀 누락 entity' "$PRD_MD" && \
+   grep -qE 'hybrid Section status 셀 누락' "$PRD_MD"; then
+  pass "verify_matrix_cells: hybrid 분기에서 entities + sections 둘 다 검증"
+else
+  fail "verify_matrix_cells hybrid 분기 부분 검증 (entities/sections 한쪽만)"
 fi
 
 # 5. CRUD 4셀 status 의무 명시
@@ -151,14 +202,14 @@ else
   fail "content 3셀 초기화 누락"
 fi
 
-# 7. case 분기 진입점 (3-class)
+# 7. case 분기 진입점 (3-class) — hybrid는 generate_code_matrix hybrid + generate_hybrid_merge_content 2단계
 if grep -qE 'case "\$\{PROJECT_CLASS:-code\}" in' "$PRD_MD" && \
-   grep -qE '  code\)\s*generate_code_matrix' "$PRD_MD" && \
+   grep -qE '  code\)\s*generate_code_matrix code' "$PRD_MD" && \
    grep -qE '  content\)\s*generate_content_matrix' "$PRD_MD" && \
-   grep -qE '  hybrid\)\s*generate_code_matrix' "$PRD_MD"; then
-  pass "matrix.json 생성 진입점 case 분기 (code/content/hybrid)"
+   grep -qE '  hybrid\)\s*generate_code_matrix hybrid; generate_hybrid_merge_content' "$PRD_MD"; then
+  pass "matrix.json 생성 진입점 case 분기 (code/content/hybrid 2단계)"
 else
-  fail "case 분기 누락 또는 부분 매칭"
+  fail "case 분기 누락 또는 부분 매칭 (hybrid 2단계 호출 형태 확인)"
 fi
 
 # 8. SSOT 단일성 (rubric 가중치 직접 직렬화 거부)
@@ -314,6 +365,29 @@ if echo "$init_note" | grep -qE '직접 cp하지 않습니다'; then
   pass "matrix.json 동적 생성 (install.sh cp 안 함) 명시"
 else
   fail "동적 생성 명시 누락"
+fi
+
+# 13. 2차 평가 이슈: _schema_hybrid에 example_root_skeleton + entities/sections reference 명시
+hybrid_skeleton=$(jq -r '._schema_hybrid.example_root_skeleton.class' "$MATRIX_JSON")
+if [[ "$hybrid_skeleton" == "hybrid" ]]; then
+  pass "matrix.json _schema_hybrid: example_root_skeleton 신설 (class=hybrid)"
+else
+  fail "_schema_hybrid example_root_skeleton 누락"
+fi
+hybrid_entities_ref=$(jq -r '._schema_hybrid._entities_reference' "$MATRIX_JSON")
+hybrid_sections_ref=$(jq -r '._schema_hybrid._sections_reference' "$MATRIX_JSON")
+if echo "$hybrid_entities_ref" | grep -qE '_schema_code\.entities_example' && \
+   echo "$hybrid_sections_ref" | grep -qE '_schema_content\.sections_example'; then
+  pass "_schema_hybrid: entities/sections reference 명시 (어느 schema 따를지 모호 해소)"
+else
+  fail "_schema_hybrid reference 부족"
+fi
+hybrid_flow=$(jq -r '._schema_hybrid._generation_flow' "$MATRIX_JSON")
+if echo "$hybrid_flow" | grep -qE 'generate_code_matrix hybrid' && \
+   echo "$hybrid_flow" | grep -qE 'generate_hybrid_merge_content'; then
+  pass "_schema_hybrid: 2단계 생성 흐름 명시 (generate_code_matrix hybrid → generate_hybrid_merge_content)"
+else
+  fail "_schema_hybrid 생성 흐름 명시 누락"
 fi
 
 # ============================================================================
