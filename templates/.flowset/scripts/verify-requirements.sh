@@ -43,9 +43,18 @@ verify_matrix_against_diff() {
   class=$(jq -r '.class // "code"' "$matrix" 2>/dev/null || echo "code")
 
   # 변경 파일 분류 — code 경로 / content 경로
+  # WI-C5 1차 평가 [LOW] 정규식 광범위 매칭 해소:
+  #   - 이전: `^src/(api|app/api|lib)/|\.ts$|...` OR 형태 → tests/*.ts, root app/api/*.ts 등
+  #     의도 외 파일도 코드로 분류 (false positive 가능).
+  #   - 이후: 디렉토리(src/(api|app/api|lib)/) AND 코드 확장자 둘 다 만족하는 경로만 매칭.
+  #     테스트 디렉토리(tests/, e2e/)와 root app/api/lib는 제외 (Stop hook이 별도 처리).
   local changed_code changed_content
-  changed_code=$(echo "$CHANGED" | grep -E '^src/(api|app/api|lib)/|\.ts$|\.tsx$|\.js$|\.jsx$|\.py$|\.go$|\.rs$' || true)
-  changed_content=$(echo "$CHANGED" | grep -E '^docs/|^content/|^research/' || true)
+  changed_code=$(echo "$CHANGED" \
+    | grep -E '^src/(api|app/api|lib)/.*\.(ts|tsx|js|jsx|py|go|rs)$' \
+    || true)
+  changed_content=$(echo "$CHANGED" \
+    | grep -E '^(docs|content|research)/.*\.(md|mdx|markdown|txt|rst)$' \
+    || true)
 
   case "$class" in
     code)
@@ -103,8 +112,18 @@ _emit_missing_sections() {
 }
 
 # 매트릭스 대조 실행 (출력은 누적 후 LLM 결과와 함께 처리)
+# WI-C5 1차 평가 [MEDIUM] silent failure 해소 (verify-requirements.sh:107):
+#   - `|| true` 마스킹은 비정상 class(verify_matrix_against_diff return 1)에서
+#     ERROR 메시지를 파일에 가두고 return 1을 무력화 → 의도된 안전장치 우회.
+#   - if/else 분기로 함수 실패를 즉시 사용자에게 노출 + exit 2로 종료.
 MATRIX_RESULT_FILE=".flowset/verify-matrix-result.txt"
-verify_matrix_against_diff > "$MATRIX_RESULT_FILE" 2>&1 || true
+if ! verify_matrix_against_diff > "$MATRIX_RESULT_FILE" 2>&1; then
+  echo "ERROR: 매트릭스 대조 함수 실패 (비정상 PROJECT_CLASS 또는 jq/matrix.json 손상)" >&2
+  if [[ -s "$MATRIX_RESULT_FILE" ]]; then
+    cat "$MATRIX_RESULT_FILE" >&2
+  fi
+  exit 2
+fi
 
 MATRIX_ISSUES=0
 if [[ -s "$MATRIX_RESULT_FILE" ]]; then

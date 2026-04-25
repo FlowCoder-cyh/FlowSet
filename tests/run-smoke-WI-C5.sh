@@ -26,6 +26,10 @@ fail() { echo "  ❌ FAIL: $1"; FAIL=$((FAIL + 1)); }
 VERIFY_SH="templates/.flowset/scripts/verify-requirements.sh"
 
 # ============================================================================
+# 1차 평가 [MEDIUM]: line 107 silent failure 회귀 차단
+# 본문 흐름이 if/else로 분기되어야 함 (|| true 마스킹 거부)
+# 1차 평가 [LOW]: 정규식 디렉토리 AND 확장자 매칭 강제
+
 echo "=== WI-C5-1: 정적 구조 검증 (HAS_MATRIX + PROJECT_CLASS + 4 함수) ==="
 
 # 1. set -euo pipefail 보존
@@ -102,6 +106,47 @@ if grep -qE '^  exit 2$' "$VERIFY_SH"; then
   pass "exit 2 보존 (기존 v3.0 Stop hook 인터페이스 호환)"
 else
   fail "exit 2 누락"
+fi
+
+# 11. 1차 평가 [MEDIUM]: silent failure 차단 — line 107 |\| true 마스킹 거부
+# if ! verify_matrix_against_diff > ... 형태로 분기해야 함
+if grep -qE '^if ! verify_matrix_against_diff > "\$MATRIX_RESULT_FILE" 2>&1; then' "$VERIFY_SH"; then
+  pass "[MEDIUM 해소] verify_matrix_against_diff 실패를 if/else로 분기 (|| true 마스킹 거부)"
+else
+  fail "[MEDIUM] silent failure 회귀 — || true 마스킹 잔존"
+fi
+# 마스킹 패턴 잔존 거부
+if grep -qE 'verify_matrix_against_diff > "\$MATRIX_RESULT_FILE" 2>&1 \|\| true' "$VERIFY_SH"; then
+  fail "[MEDIUM] || true 마스킹 잔존 (line 107 회귀)"
+else
+  pass "[MEDIUM 해소] || true 마스킹 패턴 잔존 0건"
+fi
+# ERROR 메시지 호출자 노출 + exit 2
+if grep -qE 'echo "ERROR: 매트릭스 대조 함수 실패' "$VERIFY_SH" && \
+   grep -qE 'cat "\$MATRIX_RESULT_FILE" >&2' "$VERIFY_SH"; then
+  pass "[MEDIUM 해소] 함수 실패 시 ERROR 메시지 + result 파일 cat (사용자 노출)"
+else
+  fail "[MEDIUM] ERROR 노출 경로 누락"
+fi
+
+# 12. 1차 평가 [LOW]: 정규식 디렉토리 AND 확장자 매칭
+# 이전 OR 형태(`|\.ts$|`)는 회귀 — 디렉토리 + 확장자 둘 다 매칭하는 단일 패턴이어야 함
+if grep -qE 'grep -E .\^src/\(api\|app/api\|lib\)/\.\*\\\.\(ts\|tsx\|js\|jsx\|py\|go\|rs\)\$.' "$VERIFY_SH"; then
+  pass "[LOW 해소] code 분류 정규식: 디렉토리 AND 확장자 (false positive 차단)"
+else
+  fail "[LOW] code 분류 정규식 형태 회귀"
+fi
+# 광범위 OR 패턴(`|\.ts$|`) 잔존 거부
+if grep -qE 'grep -E .\^src/\(api\|app/api\|lib\)/\|\\\.ts\$\|' "$VERIFY_SH"; then
+  fail "[LOW] OR 광범위 정규식 잔존 (회귀)"
+else
+  pass "[LOW 해소] OR 광범위 정규식 잔존 0건"
+fi
+# content 분류도 디렉토리 + 확장자 AND
+if grep -qE 'grep -E .\^\(docs\|content\|research\)/\.\*\\\.\(md\|mdx\|markdown\|txt\|rst\)\$.' "$VERIFY_SH"; then
+  pass "[LOW 해소] content 분류 정규식: 디렉토리 AND 확장자"
+else
+  fail "[LOW] content 정규식 형태 회귀"
 fi
 
 # ============================================================================
@@ -410,6 +455,117 @@ if (( bad_rc != 0 )); then
   pass "J. 비정상 class → return 1 (rc=$bad_rc, set -e 친화)"
 else
   fail "J. 비정상 class에서 return 0 (잘못)"
+fi
+popd > /dev/null
+
+# ============================================================================
+echo ""
+echo "=== WI-C5-8: 전체 실행 흐름 e2e (1차 평가 [MEDIUM] 회귀 차단) ==="
+# verify-requirements.sh 통째로 호출 → 비정상 class에서 사용자에게 ERROR 노출되는지 검증
+# (이전 line 107 `|| true` 마스킹 회귀 시 ERROR가 파일에 갇혀 노출 안 됨 → exit 0)
+
+WORK="$TMP_DIR/work-fullflow"
+mkdir -p "$WORK/.flowset/spec"
+cat > "$WORK/.flowset/spec/matrix.json" <<'EOF'
+{
+  "schema_version": "v2",
+  "class": "broken_class",
+  "entities": {}
+}
+EOF
+cat > "$WORK/.flowsetrc" <<'EOF'
+PROJECT_NAME="test"
+PROJECT_CLASS="code"
+EOF
+
+pushd "$WORK" > /dev/null
+# git diff fallback 환경 (git repo 아님) → CHANGED 빈 상태로 떨어짐, 단 verify_matrix_against_diff는
+# class 분기에서 비정상 class 감지 → return 1 → 본문 if !에서 ERROR + exit 2
+
+# verify-requirements.sh 통째로 호출 (실제 사용 흐름과 동일)
+set +e
+fullflow_output=$(bash "$REPO_ROOT/$VERIFY_SH" 2>&1)
+fullflow_rc=$?
+set -e
+
+# K-1. 비정상 class 시 ERROR 메시지가 사용자에게 노출됨 (silent failure 차단)
+if echo "$fullflow_output" | grep -qE 'ERROR: 매트릭스 대조 함수 실패'; then
+  pass "K. 전체 흐름: 비정상 class → ERROR 메시지 사용자 노출 (silent failure 차단)"
+else
+  fail "K. 전체 흐름: ERROR 미노출 (silent failure 회귀)"
+fi
+# K-2. exit code 2 (실패)
+if (( fullflow_rc == 2 )); then
+  pass "K. 전체 흐름: exit code 2 (Stop hook 호환)"
+else
+  fail "K. 전체 흐름: exit code $fullflow_rc (기대 2)"
+fi
+# K-3. 함수의 원본 ERROR 메시지(알 수 없는 PROJECT_CLASS)도 cat으로 출력
+if echo "$fullflow_output" | grep -qE 'ERROR: 알 수 없는 PROJECT_CLASS: broken_class'; then
+  pass "K. 전체 흐름: 함수 원본 ERROR 메시지도 cat으로 사용자 노출"
+else
+  fail "K. 전체 흐름: 원본 ERROR 메시지 미노출"
+fi
+popd > /dev/null
+
+# ============================================================================
+echo ""
+echo "=== WI-C5-9: 정규식 false positive 거부 e2e (1차 평가 [LOW] 회귀 차단) ==="
+WORK="$TMP_DIR/work-regex"
+mkdir -p "$WORK/.flowset/spec"
+cat > "$WORK/.flowset/spec/matrix.json" <<'EOF'
+{
+  "schema_version": "v2",
+  "class": "code",
+  "entities": {
+    "Leave": {
+      "crud": {"C": {}, "R": {}, "U": {}, "D": {}},
+      "status": {"C": "missing", "R": "missing", "U": "missing", "D": "missing"}
+    }
+  }
+}
+EOF
+
+pushd "$WORK" > /dev/null
+HAS_MATRIX=true
+MATRIX_FILE=".flowset/spec/matrix.json"
+# shellcheck source=/dev/null
+source "$EXTRACT"
+
+# L-1. tests/*.ts는 src/ 영역이 아니므로 코드 변경으로 분류 안 됨 (false positive 거부)
+CHANGED="tests/integration.test.ts"
+output=$(verify_matrix_against_diff 2>&1 || true)
+if [[ -z "$output" ]]; then
+  pass "L. 정규식 [LOW 해소]: tests/*.ts → src 영역 아님 → MATRIX_ISSUE 0건"
+else
+  fail "L. tests/*.ts에서 false positive: $output"
+fi
+
+# L-2. root app/api/route.ts (src 미경유) → 코드 영역 아님
+CHANGED="app/api/route.ts"
+output=$(verify_matrix_against_diff 2>&1 || true)
+if [[ -z "$output" ]]; then
+  pass "L. 정규식 [LOW 해소]: root app/api/*.ts → MATRIX_ISSUE 0건 (src/ prefix 필수)"
+else
+  fail "L. root app/api/*.ts에서 false positive: $output"
+fi
+
+# L-3. src/api/*.md (코드 확장자 아님) → 코드 영역 아님
+CHANGED="src/api/README.md"
+output=$(verify_matrix_against_diff 2>&1 || true)
+if [[ -z "$output" ]]; then
+  pass "L. 정규식 [LOW 해소]: src/api/*.md → MATRIX_ISSUE 0건 (코드 확장자 필수)"
+else
+  fail "L. src/api/*.md에서 false positive: $output"
+fi
+
+# L-4. src/api/leaves/route.ts → 정규식 매칭 (디렉토리 + 확장자 둘 다 만족) → MATRIX_ISSUE 발생
+CHANGED="src/api/leaves/route.ts"
+output=$(verify_matrix_against_diff 2>&1 || true)
+if echo "$output" | grep -qE 'MATRIX_ISSUE: entity=Leave'; then
+  pass "L. 정규식 [LOW 해소]: src/api/leaves/route.ts (디렉토리+확장자) → MATRIX_ISSUE 발생"
+else
+  fail "L. 정상 매칭 실패: $output"
 fi
 popd > /dev/null
 
