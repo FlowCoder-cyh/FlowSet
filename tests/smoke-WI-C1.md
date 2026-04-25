@@ -31,7 +31,7 @@ WI-C1 변경이 기존 누적 smoke(SSOT = `.github/workflows/flowset-ci.yml` sm
    - 후속 6 WI(C2/C3-code/C3-content/C4/C5/C6) consumers 명시
    - `install.sh`가 cp하지 않음 — `/wi:prd`가 PROJECT_CLASS에 따라 동적 생성
 5. **`.github/workflows/flowset-ci.yml`** smoke job에 `run-smoke-WI-C1.sh` 추가
-6. **`tests/run-smoke-WI-C1.sh`** 신규 (56 assertion, 정적 + 4 idempotency 실측 시나리오 + 2차 평가 회귀 차단 10건)
+6. **`tests/run-smoke-WI-C1.sh`** 신규 (60 assertion, 정적 + 4 idempotency 실측 + 2차 평가 회귀 차단 10건 + 3차 LOW 정합 4건)
 
 ---
 
@@ -79,14 +79,14 @@ bash tests/run-smoke-WI-C1.sh
 
 **예상 출력 요약**:
 ```
-  PASS: 56
+  PASS: 60
   FAIL: 0
   ✅ WI-C1 ALL SMOKE PASSED
 ```
 
 **전체 누적 (SSOT = `.github/workflows/flowset-ci.yml` smoke job name)**:
-- **CI SSOT**: test-vault 31 + A1 14 + A2a-e 81 (13+13+15+16+24) + A3 17 + 001 40 + B1 27 + B2 36 + B3 35 + **C1 56** = **337 assertion** (A4는 CI 미호출, 순수 meta-smoke)
-- **로컬 regression (A4 포함)**: 337 + 21 = **358 assertion**
+- **CI SSOT**: test-vault 31 + A1 14 + A2a-e 81 (13+13+15+16+24) + A3 17 + 001 40 + B1 27 + B2 36 + B3 35 + **C1 60** = **341 assertion** (A4는 CI 미호출, 순수 meta-smoke)
+- **로컬 regression (A4 포함)**: 341 + 21 = **362 assertion**
 - **bats core.bats**: 16 @test (class 무관)
 
 ---

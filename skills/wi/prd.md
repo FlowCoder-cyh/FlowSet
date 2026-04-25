@@ -607,6 +607,17 @@ verify_matrix_cells() {
       [[ -n "$missing" ]] && { echo "ERROR: Section status 셀 누락: $missing" >&2; return 1; }
       ;;
     hybrid)
+      # 사전 체크: hybrid는 entities + sections 두 영역 모두 필수.
+      # null/누락 시 jq의 to_entries[]가 에러로 떨어져 의도된 에러 메시지 없이 fall-through 가능 →
+      # 명시적 사전 체크로 generate_hybrid_merge_content 미호출 같은 흐름 결함을 짚어준다.
+      if ! jq -e '.entities | type == "object"' "$matrix" >/dev/null 2>&1; then
+        echo "ERROR: hybrid matrix.json에 entities 누락 (generate_code_matrix hybrid 미호출 가능성)" >&2
+        return 1
+      fi
+      if ! jq -e '.sections | type == "object"' "$matrix" >/dev/null 2>&1; then
+        echo "ERROR: hybrid matrix.json에 sections 누락 (generate_hybrid_merge_content 미호출 가능성)" >&2
+        return 1
+      fi
       # entities CRUD 4셀 + sections draft/review/approve 3셀 모두 검증
       missing=$(jq -r '.entities | to_entries[] |
         select((.value.crud | keys | sort) != ["C","D","R","U"] or

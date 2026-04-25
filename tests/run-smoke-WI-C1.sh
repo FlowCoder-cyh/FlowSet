@@ -188,6 +188,23 @@ else
   fail "verify_matrix_cells hybrid 분기 부분 검증 (entities/sections 한쪽만)"
 fi
 
+# 4d. 2차 평가 LOW: hybrid 분기에 entities/sections null 사전 체크 (jq 에러 fall-through 차단)
+# corner case — generate_hybrid_merge_content 미호출 시 sections null로 떨어지는데,
+# 이 경우 jq -e '.sections | type == "object"'가 false 반환 → 의도된 에러 메시지 출력 후 return 1
+if grep -qE 'jq -e .\.entities \| type == "object"' "$PRD_MD" && \
+   grep -qE 'jq -e .\.sections \| type == "object"' "$PRD_MD"; then
+  pass "verify_matrix_cells hybrid: entities/sections null 사전 체크 (jq 에러 fall-through 차단)"
+else
+  fail "hybrid 분기 사전 체크 누락 (sections null corner case 미처리)"
+fi
+# 의도된 에러 메시지 — generate_*_미호출 가능성 안내
+if grep -qE 'generate_code_matrix hybrid 미호출 가능성' "$PRD_MD" && \
+   grep -qE 'generate_hybrid_merge_content 미호출 가능성' "$PRD_MD"; then
+  pass "verify_matrix_cells hybrid: 미호출 가능성 진단 메시지 (디버깅 용이성)"
+else
+  fail "hybrid 분기 진단 메시지 누락"
+fi
+
 # 5. CRUD 4셀 status 의무 명시
 if grep -qE 'C: "missing", R: "missing", U: "missing", D: "missing"' "$PRD_MD"; then
   pass "CRUD 4셀 status missing 초기화 명시"
@@ -335,6 +352,20 @@ if (( fw_in_doc == 5 )); then
   pass "matrix.json _schema_code.auth_framework에 5종 framework 명시"
 else
   fail "matrix.json auth_framework 5종 부족 ($fw_in_doc/5)"
+fi
+
+# 9b. 2차 평가 LOW: matrix.json:13 doc 정합 — python-* 잔존 거부 (prd.md:259 v4.0 범위 외 명시와 정합)
+if echo "$auth_fw_doc" | grep -qE 'python-flask-login|python-django'; then
+  fail "matrix.json:13 doc python-* 잔존 (prd.md:259 v4.0 범위 외 명시와 불일치)"
+else
+  pass "matrix.json:13 doc python-* 제거 (prd.md:259 정합)"
+fi
+# Python v4.0 범위 외 + Step 2.5.c 안내 정합
+if echo "$auth_fw_doc" | grep -qE 'Python 기반 auth.*v4\.0 범위 외' && \
+   echo "$auth_fw_doc" | grep -qE 'Step 2\.5\.c 커스텀'; then
+  pass "matrix.json:13 doc: Python v4.0 범위 외 + Step 2.5.c 커스텀 경로 안내 (prd.md 정합)"
+else
+  fail "matrix.json:13 doc: Python 처리 안내 누락"
 fi
 
 # 10. consumers 명시 (WI-C2/C3-code/C3-content/C4/C5/C6)
