@@ -39,14 +39,7 @@ else
   fail "Step 2.5 헤더 누락"
 fi
 
-# 2. Step 흐름 정합성: Step 2 → 2.5 → 3 → 3.5 → 4 순서
-step_order=$(grep -nE '^### Step [0-9]' "$PRD_MD" | awk -F: '{print $1}')
-declare -a step_lines
-mapfile -t step_lines < <(grep -nE '^### Step [0-9]' "$PRD_MD" | awk -F: '{print $1}')
-# 정렬된 순서대로 헤더 텍스트 추출 후 시퀀스 검증
-seq_text=$(grep -E '^### Step [0-9]' "$PRD_MD" | awk -F': ' '{print $1}' | sed 's/### Step //' | tr '\n' ' ')
-expected_seq="0 0.1 0.2 1 2 2.5 3 3.5 4 5 6 "
-# Step 0.1, 0.2는 #### 인경우만 — Step 0/1/2/2.5/3/3.5/4/5/6 시퀀스 우선 확인
+# 2. Step 흐름 정합성: Step 0/1/2/2.5/3/3.5/4/5/6 순서 (Step 2.5는 Step 2와 Step 3 사이)
 seq_clean=$(grep -E '^### Step [0-9]' "$PRD_MD" | sed -E 's/^### Step ([0-9.]+).*/\1/' | tr '\n' ' ')
 if [[ "$seq_clean" == "0 1 2 2.5 3 3.5 4 5 6 " ]]; then
   pass "Step 시퀀스: 0→1→2→2.5→3→3.5→4→5→6 (Step 2.5 Step 2와 Step 3 사이 위치)"
@@ -556,11 +549,7 @@ cd "$REPO_ROOT"
 
 # 패턴 2: ((var++)) 금지 (set -e와 충돌)
 # anti-example 백틱·인라인 주석 제거 후 실제 사용 검색
-total_bad=0
-for f in skills/wi/prd.md; do
-  c=$(sed 's/`[^`]*`//g' "$f" | sed -E 's/[[:space:]]+#.*$//' | grep -cE '\(\([[:alnum:]_]+\+\+\)\)' || true)
-  total_bad=$((total_bad + c))
-done
+total_bad=$(sed 's/`[^`]*`//g' "$PRD_MD" | sed -E 's/[[:space:]]+#.*$//' | grep -cE '\(\([[:alnum:]_]+\+\+\)\)' || true)
 if (( total_bad == 0 )); then
   pass "패턴 2: ((var++)) 사용 0건 (set -e 회귀 방지)"
 else
