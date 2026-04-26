@@ -5,7 +5,7 @@ set -euo pipefail
 #
 # 통합 평가 (eval-v4-integration, 5.20/10.00) 발견 결함:
 #   [CRITICAL-1] templates/.claude/settings.json Stop hook에 stop-rag-check.sh 미등록 → B2~B7 무력화
-#   [CRITICAL-2] stop-rag-check.sh:88 verify_output `|| true` 마스킹 → B1 stop hook 경로 깨짐
+#   [CRITICAL-2] stop-rag-check.sh:88 verify_output '|| true' 마스킹 → B1 stop hook 경로 깨짐
 #   [MEDIUM-3]  sprint-template B1/B2/B3 정의가 다른 SSOT와 충돌
 #   [MEDIUM-4]  README B 매핑에 B5 누락
 #   [MEDIUM-5]  학습 31 (tr -d '\r') 4곳 누락 (verify-requirements + session-start-vault)
@@ -69,11 +69,11 @@ echo "=== v4int-2: [CRITICAL-2] verify_output exit code 마스킹 해소 ==="
 
 STOP_SH="templates/.flowset/scripts/stop-rag-check.sh"
 
-# 기존 마스킹 패턴 부재 확인 — `|| true` 직접 패턴 0건
+# 기존 마스킹 패턴 부재 확인 — '|| true' 직접 패턴 0건
 if grep -qE 'verify_output=\$\(bash .*verify-requirements\.sh.*\|\| true\)' "$STOP_SH"; then
-  fail "[CRITICAL-2] verify_output 마스킹 패턴 잔존 (`|| true`) — exit 2 무력화"
+  fail "[CRITICAL-2] verify_output 마스킹 패턴 잔존 ('|| true') — exit 2 무력화"
 else
-  pass "[CRITICAL-2 해소] verify_output 마스킹 패턴 (`|| true`) 0건"
+  pass "[CRITICAL-2 해소] verify_output 마스킹 패턴 ('|| true') 0건"
 fi
 
 # set +e/-e 분리 패턴 적용 (verify_exit 정확 캡처)
@@ -240,7 +240,7 @@ fi
 # awk 단일 호출로 카운트 (grep -c 0건 + || echo "0" multi-line 회피)
 masking_count=$(awk '/verify_output=\$\(bash .*verify-requirements.*\|\| true\)/{c++} END{print c+0}' "$STOP_SH")
 if (( masking_count == 0 )); then
-  pass "verify_output \`|| true\` 마스킹 패턴 재발 차단 (재발 방지 awk, ${masking_count}건)"
+  pass "verify_output '|| true' 마스킹 패턴 재발 차단 (재발 방지 awk, ${masking_count}건)"
 else
   fail "verify_output 마스킹 패턴 ${masking_count}건 — [CRITICAL-2] 회귀"
 fi
