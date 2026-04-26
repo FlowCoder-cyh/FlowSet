@@ -188,11 +188,15 @@ fi
 echo ""
 echo "=== v4int-7: [LOW-7] CHANGELOG 카운트 명시 ==="
 
-# 23 commits 명시 (22 WI + 사전 정비 1)
-if grep -qE '23 commits' CHANGELOG.md; then
-  pass "[LOW-7 해소] CHANGELOG 23 commits 카운트 명시 (22 WI + 사전 정비 1)"
+# 25 PR 카운트 명시 (23 WI + 사전 정비 1 + 통합 fix 1, WI-D3 갱신)
+# cross-check: 의미 단위 분해 검증 — hardcode 숫자 단일 매칭이 아닌 분해 카운트 일관성
+if grep -qE '23 WI 머지' CHANGELOG.md && \
+   grep -qE '사전 정비 1건' CHANGELOG.md && \
+   grep -qE '통합 fix 1건' CHANGELOG.md && \
+   grep -qE '\*\*25 PR\*\*' CHANGELOG.md; then
+  pass "[LOW-7 해소] CHANGELOG 25 PR 카운트 분해 명시 (23 WI + 사전 정비 1 + 통합 fix 1)"
 else
-  fail "[LOW-7] 23 commits 카운트 명시 누락"
+  fail "[LOW-7] CHANGELOG 카운트 분해 명시 누락 (23 WI / 사전 정비 1 / 통합 fix 1 / 25 PR)"
 fi
 
 # ============================================================================
