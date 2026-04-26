@@ -4,7 +4,7 @@
 
 **매트릭스 기반 검증 게이트웨이 + 4-class 시스템 (code/content/hybrid/visual)**
 
-22 WI 머지 (Group α/β/γ/δ + WI-001) + 사전 정비 1건(WI-001-fix) = **23 commits** — 코드 프로젝트뿐 아니라 **content 프로젝트(문서·연구·기획)** 도 동일 워크플로우로 자동화.
+23 WI 머지 (Group α/β/γ/δ + WI-001) + 사전 정비 1건(WI-001-fix) + 통합 fix 1건(WI-v4int-fix) = **25 PR** — 코드 프로젝트뿐 아니라 **content 프로젝트(문서·연구·기획)** 도 동일 워크플로우로 자동화.
 
 ### Group α (shell 품질, 8 WI)
 - **WI-A1**: jq 전환 + `set -euo pipefail` 통일 (전체 22 shell)
@@ -24,7 +24,7 @@
 - **WI-B2**: `/wi:start` 3모드 분기 (Phase 6 재구성: 루프/대화형/팀)
 - **WI-B3**: contracts class별 템플릿 — `style-guide.md` + `review-rubric.md` 신설
 
-### Group γ (매트릭스 SSOT, 8 WI)
+### Group γ (매트릭스 SSOT, 9 WI)
 - **WI-C1**: `/wi:prd` Step 2.5 Role 추출 + 매트릭스 셀 의무 + `prd-state.json` v2 확장 (entities/roles/crud_matrix/permission_matrix)
 - **WI-C2**: `sprint-template.md` CRUD/Section 매트릭스 + Gherkin 강제 (자유 텍스트 금지)
 - **WI-C3-parse**: `parse-gherkin.sh` 신설 (cucumber CLI 미설치 환경 fallback, JSON 출력 계약)
@@ -32,6 +32,7 @@
   - B2: `src/api/**` 변경 시 `auth_patterns[]` grep, 매칭 실패 → block
   - B3: 같은 interface/type 다른 파일 2개+ → block
   - B4: Gherkin 시나리오 ↔ tests 개수 + 이름 부분 매칭, 실패 → block
+- **WI-C3code-fix**: WI-C3-code 평가자 [MEDIUM/LOW] 즉시 해소 — `decision JSON jq -nc --arg` 의무 (학습 32 도출) + 학습 31 누락 4곳 보강
 - **WI-C3-content**: `stop-rag-check.sh` 섹션 9/10 신설 — **B6/B7 차단**
   - B6: `matrix.sections[].sources[]` 파일 존재 + URL 형식 검증
   - B7: `completeness_checklist` 항목이 변경된 content 파일 본문에 등장 (paths 매핑 옵션)
@@ -42,6 +43,14 @@
 ### Group δ (문서, 2 WI)
 - **WI-D1**: `templates/CLAUDE.md` 핵심 규칙 → 4-class 분화 (code/content/hybrid) + 9번 "증거 기반 완료 보고" 신설 + 자동 강제 class별 분기. `README.md` v4.0 PROJECT_CLASS 시스템 표 + B1~B7 차단 매핑 + Stop hook §6/7/8/9/10
 - **WI-D2**: 본 CHANGELOG v4.0 항목
+
+### 통합 무결성 (1 fix)
+- **WI-v4int-fix** (PR #44): 통합 평가에서 발견된 hook chain 결함 7건 즉시 해소 (학습 34 도출). 분리 평가 23/23 10.00이었으나 통합 평가 5.20 FAIL → fix 후 10.00 회복.
+  - [CRITICAL-1] `templates/.claude/settings.json` Stop hook에 `stop-rag-check.sh` 미등록 → B2~B7 차단 무력화 회복
+  - [CRITICAL-2] `verify-requirements.sh`의 `verify_output || true` 마스킹 패턴 제거 → B1 stop hook 경로 복원
+  - [MEDIUM-3/4/5] sprint-template B 정의 충돌 + README B5 누락 + 학습 31 누락 4곳 보강
+  - [LOW-6/7] evaluator null guard + CHANGELOG 카운트 자기참조 cross-check
+  - **재발 방지**: smoke가 settings.json ↔ 실재 파일, `_emit_missing_*` SSOT 일관, masking 패턴 cross-check를 영구 차단
 
 ### Stop hook 자동 차단 (B1~B7)
 
@@ -62,14 +71,15 @@
 - **type: hybrid** (신설): code 영역 + content 영역 변경량(line) 가중 평균 또는 strict mode (`coverage_mode: strict`)
 - **type: 비주얼** (legacy 보존)
 
-### 누적 학습 패턴 (33개)
+### 누적 학습 패턴 (34개)
 
-본 v4.0 사이클에서 도출된 신규 패턴 (이전 29개 + 본 사이클 +4):
+본 v4.0 사이클에서 도출된 신규 패턴 (이전 29개 + 본 사이클 +5):
 
 - **30**: bash heredoc backslash escape 함정 — `cat -A` 또는 `awk | tr -d -c '\\' | wc -c`로 검증
 - **31**: Windows jq.exe stdout CRLF — 모든 `jq -r` 결과에 `| tr -d '\r'` 의무 (SSOT 패턴)
 - **32**: decision JSON은 `jq -nc --arg` 의무 — `printf+sed` escape 회귀 차단
 - **33**: 헬퍼 함수 분리 시 `verify-requirements.sh`의 `_underscore_prefix` + `local _x="$1"` + `while IFS= read` 컨벤션 차용
+- **34**: 분리 평가 ≠ 통합 검증 — 메이저 리팩토링 마무리 시 통합 평가 별도 사이클 필수 (cross-WI hook chain 결함은 분리 평가가 못 잡음)
 
 ### 마이그레이션 (v3.x → v4.0)
 

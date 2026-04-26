@@ -249,14 +249,21 @@ fi
 
 readme_class_block=$(awk '/^### v4\.0 PROJECT_CLASS/,/^### FlowSet 동작 원리/' "$README_MD")
 
-# 4-class 표 (code/content/hybrid/visual)
-for class in "\`code\`" "\`content\`" "\`hybrid\`" "\`visual\`"; do
+# PROJECT_CLASS 표 (code/content/hybrid 3종, WI-D3 갱신)
+for class in "\`code\`" "\`content\`" "\`hybrid\`"; do
   if echo "$readme_class_block" | grep -qF "$class"; then
-    pass "README 4-class 표: ${class}"
+    pass "README PROJECT_CLASS 표: ${class}"
   else
     fail "README class 누락: ${class}"
   fi
 done
+
+# visual은 evaluator type legacy로 별도 명시 (PROJECT_CLASS 정식 값 아님)
+if echo "$readme_class_block" | grep -qE 'visual.*legacy|legacy.*보존'; then
+  pass "README evaluator type visual legacy 명시 (PROJECT_CLASS 3-class와 분리)"
+else
+  fail "visual legacy 표기 누락"
+fi
 
 # B1~B7 모두 명시 (B5는 SessionStart, evaluator/Stop hook 무관)
 for b in "B1" "B2" "B3" "B4" "B6" "B7"; do
@@ -325,8 +332,17 @@ for cmd in '/wi:init' '/wi:prd' '/wi:env' '/wi:start' '/wi:status' '/wi:guide' '
   fi
 done
 
-# 핵심 설계 원칙 보존
-for principle in "요구사항 보호" "생성자-평가자 분리" "스프린트 계약" "채점 기반 평가" "Agent Teams 상주" "소유권 hook 강제" "vault 세션 연속성"; do
+# 핵심 설계 원칙 — v4.0 신원칙 4개 (WI-D3 신설)
+for principle in "매트릭스 SSOT" "B1~B7 자동 차단" "3-class 분기" "증거 기반 완료 보고"; do
+  if grep -qF "$principle" "$README_MD"; then
+    pass "README 핵심 설계 원칙 v4.0 신설: ${principle}"
+  else
+    fail "README 핵심 설계 원칙 v4.0 누락: ${principle}"
+  fi
+done
+
+# 핵심 설계 원칙 — v3.x 보존
+for principle in "요구사항 보호" "생성자-평가자 분리" "스프린트 계약" "Agent Teams 상주" "소유권 hook 강제" "vault 세션 연속성"; do
   if grep -qF "$principle" "$README_MD"; then
     pass "README 핵심 설계 원칙 보존: ${principle}"
   else
