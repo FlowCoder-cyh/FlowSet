@@ -85,8 +85,14 @@ fi
 if [[ -f ".flowset/scripts/verify-requirements.sh" && -f ".flowset/requirements.md" ]]; then
   src_count=$(echo "$changed_files" | grep -cE '\.(ts|tsx|js|jsx|py|go|rs)$' 2>/dev/null || echo "0")
   if [[ "$src_count" -ge 3 ]]; then
-    verify_output=$(bash .flowset/scripts/verify-requirements.sh 2>&1 || true)
+    # v4.0 통합 평가 [CRITICAL-2] 해소:
+    #   기존: `verify_output=$(... || true); verify_exit=$?` → `|| true` 마스킹으로 verify_exit 항상 0
+    #   결과: verify-requirements.sh exit 2(매트릭스 미완 셀)가 stop hook 경로로 절대 노출 안 됨 → B1 차단 무력화
+    #   수정: set +e/-e로 명령 치환 종료 코드 직접 캡처 (set -euo pipefail 안전)
+    set +e
+    verify_output=$(bash .flowset/scripts/verify-requirements.sh 2>&1)
     verify_exit=$?
+    set -e
     if [[ $verify_exit -eq 2 ]]; then
       issues+=("검증 에이전트: 요구사항 누락 감지 — $verify_output")
     fi

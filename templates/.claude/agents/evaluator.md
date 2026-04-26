@@ -90,17 +90,18 @@ hooks:
 
 `matrix.json`의 status 셀 중 `done`인 비율. 100%면 만점, 미만이면 비례 감점.
 
-**code class** — entities × {C,R,U,D status} 셀 (학습 31: tr -d '\r' SSOT 일관 적용):
+**code class** — entities × {C,R,U,D status} 셀 (학습 31: tr -d '\r' + null guard `// {}`):
 ```bash
-total=$(jq '[.entities[] | .status | to_entries[]] | length' .flowset/spec/matrix.json | tr -d '\r')
-done_n=$(jq '[.entities[] | .status | to_entries[] | select(.value == "done")] | length' .flowset/spec/matrix.json | tr -d '\r')
+# `(.entities // {})` null guard — entities 키 부재 시 jq error 회피 (손상/v3.x matrix 안전)
+total=$(jq '[(.entities // {})[] | .status | to_entries[]] | length' .flowset/spec/matrix.json | tr -d '\r')
+done_n=$(jq '[(.entities // {})[] | .status | to_entries[] | select(.value == "done")] | length' .flowset/spec/matrix.json | tr -d '\r')
 cell_coverage=$(awk "BEGIN { print ($total > 0 ? $done_n / $total : 0) }")
 ```
 
 **content class** — sections × {draft,review,approve status} 셀:
 ```bash
-total=$(jq '[.sections[] | .status | to_entries[]] | length' .flowset/spec/matrix.json | tr -d '\r')
-done_n=$(jq '[.sections[] | .status | to_entries[] | select(.value == "done")] | length' .flowset/spec/matrix.json | tr -d '\r')
+total=$(jq '[(.sections // {})[] | .status | to_entries[]] | length' .flowset/spec/matrix.json | tr -d '\r')
+done_n=$(jq '[(.sections // {})[] | .status | to_entries[] | select(.value == "done")] | length' .flowset/spec/matrix.json | tr -d '\r')
 cell_coverage=$(awk "BEGIN { print ($total > 0 ? $done_n / $total : 0) }")
 ```
 

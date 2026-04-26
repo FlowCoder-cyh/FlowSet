@@ -4,7 +4,7 @@
 
 **매트릭스 기반 검증 게이트웨이 + 4-class 시스템 (code/content/hybrid/visual)**
 
-22 WI 머지 (Group α/β/γ/δ + WI-001) — 코드 프로젝트뿐 아니라 **content 프로젝트(문서·연구·기획)** 도 동일 워크플로우로 자동화.
+22 WI 머지 (Group α/β/γ/δ + WI-001) + 사전 정비 1건(WI-001-fix) = **23 commits** — 코드 프로젝트뿐 아니라 **content 프로젝트(문서·연구·기획)** 도 동일 워크플로우로 자동화.
 
 ### Group α (shell 품질, 8 WI)
 - **WI-A1**: jq 전환 + `set -euo pipefail` 통일 (전체 22 shell)
@@ -84,7 +84,7 @@
 
 ### CI
 
-- smoke: 126 → **870 assertion** (19개 그룹 — A1/A2a~e/A3/A4/001/B1~B3/C1/C2/C3p/C3code/C3content/C4/C5/C6/D1/D2)
+- smoke: 126 → **895 assertion** (20개 그룹 — A1/A2a~e/A3/A4/001/B1~B3/C1/C2/C3p/C3code/C3content/C4/C5/C6/D1/D2/v4int)
 - bats: 16 @test
 - shellcheck severity=warning 전체 .sh 통과
 - commit-check: `WI-NNN-[type] 한글 작업명` 정규식 (영숫자 포함 허용 — WI-A2a, WI-C3code 등)
@@ -96,8 +96,8 @@
 - **cucumber CLI**: 옵션 (npm 환경에서 1순위, 미설치 시 `parse-gherkin.sh` fallback)
 
 ### 주요 파일 변경
-- 신규: `templates/.flowset/spec/matrix.json` (SSOT 스키마), `parse-gherkin.sh`, `verify-requirements.sh` (매트릭스 대조), `templates/lib/state.sh` + 4 모듈 (preflight/worker/merge/vault), `templates/.flowset/contracts/style-guide.md` + `review-rubric.md`, `tests/bats_tests/core.bats`, `tests/run-smoke-WI-*.sh` 22개, `.github/workflows/flowset-ci.yml`
-- 확장: `templates/.claude/agents/evaluator.md` (186→370줄, 4-class), `templates/CLAUDE.md` (48→97줄, class 분화), `templates/.flowset/scripts/stop-rag-check.sh` (155→428줄, 섹션 6~10), `session-start-vault.sh` (130→227줄, 미완 셀 주입)
+- 신규: `templates/.flowset/spec/matrix.json` (SSOT 스키마), `parse-gherkin.sh`, `verify-requirements.sh` (매트릭스 대조), `templates/lib/state.sh` + 4 모듈 (preflight/worker/merge/vault), `templates/.flowset/contracts/style-guide.md` + `review-rubric.md`, `tests/bats_tests/core.bats`, `tests/run-smoke-WI-*.sh` 23개, `.github/workflows/flowset-ci.yml`
+- 확장: `templates/.claude/agents/evaluator.md` (186→371줄, 4-class), `templates/CLAUDE.md` (48→97줄, class 분화), `templates/.flowset/scripts/stop-rag-check.sh` (155→434줄, 섹션 6~10 + 통합 fix), `session-start-vault.sh` (130→229줄, 미완 셀 주입 + 학습 31)
 
 ## [v3.4.0] - 2026-04-03
 

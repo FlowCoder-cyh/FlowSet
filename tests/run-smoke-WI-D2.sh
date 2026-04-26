@@ -333,10 +333,10 @@ done
 # 줄수 변동 형식 — 평가자 [MEDIUM] 해소: 실제 파일 줄수와 cross-check
 # CHANGELOG에 명시된 변동 후 줄수가 현재 파일의 실제 wc -l과 일치해야 함
 declare -A expected_line_counts=(
-  ["templates/.claude/agents/evaluator.md"]="370"
+  ["templates/.claude/agents/evaluator.md"]="371"
   ["templates/CLAUDE.md"]="97"
-  ["templates/.flowset/scripts/stop-rag-check.sh"]="428"
-  ["templates/.flowset/scripts/session-start-vault.sh"]="227"
+  ["templates/.flowset/scripts/stop-rag-check.sh"]="434"
+  ["templates/.flowset/scripts/session-start-vault.sh"]="229"
 )
 for file_path in "${!expected_line_counts[@]}"; do
   expected="${expected_line_counts[$file_path]}"

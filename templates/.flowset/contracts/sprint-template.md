@@ -102,9 +102,10 @@ Feature: User Flow section completeness
 | admin | true | all | all | true |
 
 **셀 의무 규칙** (설계 §4 :109-117):
-- CRUD 4셀 모두 채움 (누락 금지) — pain point B1 차단
-- Role × CRUD 권한 셀 모두 채움 (`employee/manager/admin × C/R/U/D` = N×4) — pain point B2 차단
-- `type_ssot` 단일 SSOT 명시 (예: `prisma/schema.prisma#Leave`) — pain point B3 차단
+- CRUD 4셀 모두 채움 (누락 금지) — `matrix.entities[].status` 미완 셀 차단 (**B1**)
+- Role × CRUD 권한 셀 모두 채움 (`employee/manager/admin × C/R/U/D` = N×4) — sprint contract 자체 의무 (auth_patterns **B2**는 별개, Stop hook §7에서 src/api 변경 시 검증)
+- `type_ssot` 단일 SSOT 명시 (예: `prisma/schema.prisma#Leave`) — sprint contract 자체 의무 (타입 중복 **B3**은 별개, Stop hook §6에서 같은 이름 다른 파일 2개+ 검증)
+- Gherkin 시나리오는 별도 .feature 파일로 분리, `matrix.entities[].gherkin[]`에 등록 — Gherkin↔테스트 매핑 (**B4**)은 Stop hook §8에서 검증
 
 ## Section 매트릭스 (content | hybrid only) — matrix.json 셀 참조
 
