@@ -209,11 +209,12 @@ FlowSet/
 
 **매트릭스 SSOT**: `.flowset/spec/matrix.json` — `/wi:prd` Step 4가 PROJECT_CLASS에 따라 동적 생성.
 
-**자동 차단 메커니즘** (Stop hook `stop-rag-check.sh`, v4.0 §6/7/8/9/10):
-- B1 (미완 셀): `matrix.status: "missing"` → evaluator FAIL
+**자동 차단 메커니즘** (Stop hook `stop-rag-check.sh`, v4.0 §6/7/8/9/10 + SessionStart):
+- B1 (미완 셀): `matrix.status: "missing"` → evaluator FAIL + verify-requirements.sh exit 2
 - B2 (auth_patterns): `src/api/**` 변경 시 등록 패턴 grep, 매칭 실패 → block
 - B3 (타입 중복): 같은 interface/type 다른 파일 2개+ → block
 - B4 (Gherkin↔테스트): 시나리오 수 + 이름 부분 매칭 검증, 실패 → block
+- B5 (미완 셀 우선 주입): SessionStart/PostCompact 시점 `session-start-vault.sh`가 미완 셀을 컨텍스트에 자동 주입
 - B6 (sources): `matrix.sections[].sources[]` 파일 존재 + URL 형식 검증
 - B7 (completeness): `completeness_checklist` 항목이 본문(매핑된 paths)에 등장 검증
 

@@ -88,12 +88,13 @@ _emit_missing_entities() {
     [[ -z "$entity" ]] && continue
     [[ -z "$missing_cells" ]] && continue
     echo "MATRIX_ISSUE: entity=$entity 미완 셀 [$missing_cells]"
+  # 학습 31: jq -r 결과에 tr -d '\r' (Windows jq.exe stdout CRLF 정합 — SSOT 일관성)
   done < <(jq -r '
     .entities | to_entries[] |
     [.key,
      ([.value.status | to_entries[] | select(.value != "done") | .key] | join(","))
     ] | @tsv
-  ' "$matrix" 2>/dev/null | grep -vE '	$' || true)
+  ' "$matrix" 2>/dev/null | tr -d '\r' | grep -vE '	$' || true)
 }
 
 _emit_missing_sections() {
@@ -103,12 +104,13 @@ _emit_missing_sections() {
     [[ -z "$section" ]] && continue
     [[ -z "$missing_cells" ]] && continue
     echo "MATRIX_ISSUE: section=$section 미완 셀 [$missing_cells]"
+  # 학습 31: jq -r 결과에 tr -d '\r'
   done < <(jq -r '
     .sections | to_entries[] |
     [.key,
      ([.value.status | to_entries[] | select(.value != "done") | .key] | join(","))
     ] | @tsv
-  ' "$matrix" 2>/dev/null | grep -vE '	$' || true)
+  ' "$matrix" 2>/dev/null | tr -d '\r' | grep -vE '	$' || true)
 }
 
 # 매트릭스 대조 실행 (출력은 누적 후 LLM 결과와 함께 처리)
