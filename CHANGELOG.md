@@ -1,5 +1,43 @@
 # Changelog
 
+## [v4.0.1] - 2026-04-27
+
+**CI/CD 자동화 — CHANGELOG-driven release + README cross-check smoke (WI-E1-ci)**
+
+`v4.0.0` 발행 직후 학습 — 릴리즈 발행과 README 정합성을 수동으로 유지하지 않도록 자동화. v3.0~v4.0 사이 GitHub Release가 v2.1.0에서 멈춰있던 문제 + WI-D3에서 발견된 README 누락 7건이 PR 머지 후에야 드러난 문제를 동시 해소.
+
+### Layer 1 — Release 자동 발행 (`.github/workflows/release.yml`)
+- 트리거: `main` push에 `CHANGELOG.md` 변경 포함 시
+- 로직: CHANGELOG 최상단 `## [vX.Y.Z]` 헤더 추출 → 해당 tag/release 미존재 시 자동 발행
+- idempotent: tag/release 둘 다 있으면 skip, 부분만 있으면 누락 부분만 생성
+- 섹션 추출: `awk`로 첫 헤더 ~ 다음 `## [v` 직전까지 추출 → release notes
+- 빈 노트 방어 + 헤더 라인 자동 제목화 (`**...**` 추출 → `vX.Y.Z — ...` 형식)
+
+### Layer 2 — README cross-check smoke (`tests/run-smoke-readme-sync.sh`)
+- 학습 34 (메타-건전성) 적용: hardcode 카운트 없이 실제 디렉토리 ↔ README 표기 동적 비교
+- 검증 영역 (52 assertion):
+  1. `templates/.flowset/scripts/` — 카운트 + 14개 파일명 README 등장
+  2. `templates/.flowset/contracts/` — 카운트 + 5개 파일명 등장
+  3. `templates/lib/` — 5개 모듈 등장
+  4. `skills/wi/` — 7개 명령 + `/wi:NAME` 표기
+  5. `templates/.claude/agents/` — 2개
+  6. `templates/.claude/rules/` — 3개
+  7. `templates/.flowset/guides/` — 2개
+  8. `spec/matrix.json` + `reviews/` + `approvals/` 트리 표기
+  9. v3.x 잔재 차단 (`flowset.sh # ... (v3.x)` 형식 등장 시 fail)
+  10. README 현재 버전 표기 vs CHANGELOG 최상단 버전 정합
+
+### CI 통합
+- `flowset-ci.yml` smoke job: 895 → **950 assertion** (readme-sync 52 + WI-D1 99→102 갱신)
+- 새 PR이 v4.0 산출물 추가/변경 시 README에 반영하지 않으면 자동 차단 (WI-D3 같은 누락 사전 차단)
+
+### 학습 패턴 (35개, +1)
+- **35**: 자동화 3-layer는 CHANGELOG.md를 SSOT로 통일 — release notes / 버전 정합 / README cross-check 모두 CHANGELOG 최상단을 단일 진실로 참조
+
+### 주요 파일 변경
+- 신규: `.github/workflows/release.yml`, `tests/run-smoke-readme-sync.sh`
+- 갱신: `.github/workflows/flowset-ci.yml` (smoke 950 + readme-sync 호출 추가)
+
 ## [v4.0.0] - 2026-04-27
 
 **매트릭스 기반 검증 게이트웨이 + 4-class 시스템 (code/content/hybrid/visual)**
