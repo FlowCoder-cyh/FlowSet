@@ -68,7 +68,7 @@ hooks:
   - 양쪽 영역 모두 변경 있어야 발동 — 한쪽 0이면 strict 비활성화 → weighted로 폴백
   - `hybrid_score = min(code_score, content_score)` — 약한 영역이 전체 점수 결정
   - 한쪽만 변경된 hybrid PR에 strict가 잘못 적용되어 N/A score와 min 계산하는 모호성 차단
-- **strict 발동 키워드 형식** (sprint-{NNN}.md frontmatter):
+- **strict 발동 키워드 형식** (sprint-{ID}.md frontmatter):
   ```yaml
   ---
   type: hybrid

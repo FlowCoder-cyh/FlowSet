@@ -23,12 +23,16 @@
 - `templates/.flowset/hooks/pre-push:25`: 정규식 `[0-9]{3,4}-chore` → `[0-9A-Za-z]+-chore` (dormant fix)
 
 ### Layer 4 — 자기 일관성 + 만점 도달 cleanup (evaluator 6.5 → 10/10)
-evaluator WI-E4 회의적 검증 6.5/10 만점 미달 — POINT-NEW 5건 발굴 (PR 자기 일관성 결여 + 잔존 영역). 즉시 해소:
+evaluator WI-E4 회의적 검증 6.5/10 → 7.5/10 → **10/10** 만점 도달 — 1차 PROMPT.md 자기 일관성 결여 + 2차 evaluator.md/lead-workflow.md 동일 패턴 재발 + 루트 `.claude/agents/` scope 외 부수 발굴 모두 일괄 해소:
 - `templates/.flowset/PROMPT.md` L32, L76, L120 — `WI-{NNN}` → `WI-{ID}` (Layer 3에서 L52/L116만 변경 → 같은 파일 자기 일관성 결여 회복)
 - `templates/.flowset/contracts/sprint-template.md:1` — 헤더 `WI-{NNN}-{type}` → `WI-{ID}-{type}` (evaluator.md/lead-workflow.md가 가리키는 sprint contract 경로 정합)
 - `skills/wi/start.md:114` — WI 자동 번호 부여 자릿수 정책 영숫자 정합 ("99개 이하 → 3자리, 999개 이하 → 3자리, 1000개 이상 → 4자리" → "1000개 이하 3자리, 1000개+ 4자리 + 영숫자 ID 사용자 지정 가능")
 - `templates/.github/PULL_REQUEST_TEMPLATE.md:2` — `WI-NNN-[type]` 부연 명시 추가 (예: 001/A2a/C3code/E1/001-1)
 - `templates/.flowset/hooks/pre-push:34` 에러 메시지 — 영숫자 ID 부연 명시 추가
+- `templates/.claude/agents/evaluator.md:71` — `(sprint-{NNN}.md frontmatter)` → `(sprint-{ID}.md frontmatter)` (1차 동일 패턴 재발 — L312/L350만 변경하고 L71 누락)
+- `templates/.claude/agents/lead-workflow.md:109` — `sprint-{NNN}.md` → `sprint-{ID}.md` (1차 동일 패턴 재발 — L91/L128만 변경하고 L109 누락)
+- 루트 `.claude/agents/evaluator.md` L141, L142, L167 + `lead-workflow.md` L90, L91, L128 (templates/와 동기화 — evaluator 부수 관찰 영역까지 일괄 처리)
+- `tests/run-smoke-WI-D2.sh` `set +o pipefail` 추가 (mawk SIGPIPE 회피, v4_block 대형 파이프 검증 안전)
 
 ### 학습 38 진정 100% 완결
 - **코드 영역** (v4.0.2/v4.0.3): 정규식 통일 + sentinel CI 게이트 영구 차단
