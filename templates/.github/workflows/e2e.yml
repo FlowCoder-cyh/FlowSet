@@ -86,8 +86,9 @@ jobs:
           echo "$FAILED_TESTS" | node -e "
             const failures = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8'));
             for (const f of failures) {
-              // describe 블록에서 WI 번호 추출 (예: 'WI-063: 휴가 신청 폼')
-              const wiMatch = f.title.match(/WI-\d+/);
+              // describe 블록에서 WI 번호 추출 (예: 'WI-063: 휴가 신청 폼', 'WI-A2a: 모듈 분리')
+              // WI-E3: 영숫자 ID + 서브넘버링 통일 (학습 38 완결)
+              const wiMatch = f.title.match(/WI-[0-9A-Za-z]+(-\d+)?/);
               const wiNum = wiMatch ? wiMatch[0] : 'UNKNOWN';
               console.log(JSON.stringify({ wi: wiNum, title: f.title, file: f.file, error: f.error }));
             }

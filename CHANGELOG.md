@@ -1,5 +1,66 @@
 # Changelog
 
+## [v4.0.3] - 2026-04-27
+
+**학습 37 일반화 — flowset.sh + lib/merge.sh + task-completed-eval.sh 영숫자 WI ID 통일 (WI-E3-ci)**
+
+`v4.0.2` evaluator 회의적 검증에서 **POINT-NEW 3건 → 실제 8개 위치** 발굴. FlowSet 자체는 영문 ID(`WI-E1-ci`/`WI-A2a-feat`/`WI-C3code-fix`) 동작하면서 다운스트림에 배포되는 templates의 8개 위치가 영숫자 미지원 → 다운스트림 영숫자 WI 사용 시 silent fail. WI-E2가 commit-check 영역만 fix하고 잔존시킨 자기참조 결함 일괄 해소.
+
+### Layer 1 — `templates/flowset.sh` 5개 위치 영숫자 ID + 서브넘버링 통일
+- L262: `recover_completed_from_history()` prefix 추출 — `WI-[0-9]+` → `WI-[0-9A-Za-z]+(-[0-9]+)?`
+- L271: git log 추출 정규식 동일 통일
+- L371: PR rebase 실패 시 wi_prefix 추출 통일
+- L467: `validate_post_iteration()` 정규식 + **`PATTERN_REVERT` 추가** (Revert 커밋 violation 방지)
+- L932: domain 추출 sed → `sed -E` ERE + 영숫자 패턴
+
+### Layer 2 — `templates/lib/merge.sh` 2개 위치 영숫자 ID 통일
+- L161: 머지 추적 `wi_num` — `WI-[0-9]+` → `WI-[0-9A-Za-z]+`
+- L445: regression issue 주입 `wi_num` 통일
+
+### Layer 3 — `templates/.flowset/scripts/task-completed-eval.sh:20` 영숫자 ID + 서브넘버링
+- 기존: `WI-[0-9]{3,4}` — 영숫자 WI silent skip → TaskCompleted hook 미동작
+- 신규: `WI-[0-9A-Za-z]+(-[0-9]+)?` — evaluator gate 정상 발동
+
+### Layer 4 — cross-check smoke (`tests/run-smoke-WI-E3.sh`, 36 assertion)
+- 8개 위치 정규식 검증 + 잔존 `WI-[0-9]+` 차단
+- 영숫자 WI commit/issue/머지 메시지 추출 시뮬레이션 (recover/wi_num/WI_NUM 6+4+5건)
+- `validate_post_iteration()` bash regex 매칭 (영숫자 + 서브넘버링 + 시스템 + Merge/Revert 8건)
+- domain 추출 sed -E 시뮬레이션
+
+### Layer 5 — vault transcript PCRE + e2e JS regex 영숫자 통일 (evaluator 회의적 발굴)
+- **CRITICAL** `templates/lib/vault.sh:396` PCRE — `WI-\d{3,4}(-\d+)?-\w+` → `WI-[0-9A-Za-z]+(-\d+)?-\w+` (다운스트림 vault state.md/daily.md에서 영숫자 WI 누락 차단)
+- **CRITICAL** `.flowset/scripts/vault-helpers.sh:362` PCRE 동일 통일 — **루트 자기참조 결함** (FlowSet 본 저장소 vault transcript 추출에서 본인 작업(WI-E3 등) 누락 차단)
+- **MEDIUM** `templates/.github/workflows/e2e.yml:90` JS regex — `/WI-\d+/` → `/WI-[0-9A-Za-z]+(-\d+)?/` (다운스트림 e2e regression issue 자동 생성에서 영숫자 WI 누락 차단)
+- **LOW** `tests/test-vault-transcript.sh:141/145/154` 동일 PCRE 통일 + 영숫자 케이스 4건 추가 (35 assertion)
+
+### Layer 6 — sentinel grep CI 게이트 (학습 38 영구 차단)
+- WI-E3 smoke에 sentinel section 신설 (4 assertion):
+  - `'WI-\d{3,4}'` literal (PCRE 코드 안)
+  - `'WI-\d+'` literal (PCRE 코드 안)
+  - `'WI-[0-9]+'` 단독 정규식
+  - `'WI-[0-9]{3,4}'` 한정 정규식
+- 영역: `templates/`, `.flowset/scripts/`, `.github/`, **`skills/`** (evaluator 3차 채점 반영)
+- smoke 자체(WI-E2/E3 부정 케이스 포함)는 exclude
+- 미래 회귀(영숫자 미지원 패턴 추가) PR CI에서 즉시 차단
+
+### Layer 7 — evaluator 만점 채점 cleanup (9.15 → 10 도달)
+- `skills/wi/start.md:736-737` 의사코드 정규식 영숫자 통일 (사용자 복붙 시 영숫자 WI silent skip 차단)
+- `tests/run-smoke-WI-A4.sh:130` fixed-string 회귀 검증에 서브넘버링 그룹 `(-[0-9]+)?` 포함 (commit-check 정규식 변경 추적 정확화)
+- Layer 6 sentinel 검사 영역에 `skills/` 추가 — "templates 전 영역 grep 필수" 학습 38 진정 일반화 완결
+
+### CI 통합
+- `flowset-ci.yml` smoke job: 1016 → **1070 assertion** (E3 50 + test-vault-transcript 31→35)
+- 미래 회귀(template/.flowset/.github 영숫자 미지원 패턴) 즉시 차단
+
+### 학습 37 → 38 일반화 완결
+- **37**: FlowSet 자체와 templates 정규식 비일관 = 자기참조 결함
+- **38** (본격 채택): "메이저 리팩토링 후 templates 전 영역 grep 필수" + sentinel CI 게이트로 영구 차단
+- **self-violation 차단**: WI-E2/E3가 단계적 fix를 시도하면서 매 사이클 evaluator가 새 영역 발굴 → 본 PR이 sentinel grep으로 회귀 사이클 종결
+
+### 주요 파일 변경
+- 갱신: `templates/flowset.sh` (5건), `templates/lib/merge.sh` (2건), `templates/.flowset/scripts/task-completed-eval.sh` (1건), `templates/lib/vault.sh` (1건, Layer 5), `templates/.github/workflows/e2e.yml` (1건, Layer 5), `.flowset/scripts/vault-helpers.sh` (1건, 루트 자기참조), `tests/test-vault-transcript.sh` (4건 영숫자 케이스 추가), `.github/workflows/flowset-ci.yml`, `CHANGELOG.md`
+- 신규: `tests/run-smoke-WI-E3.sh` (50 assertion) — `tests/run-smoke-WI-*.sh` 25개 누적
+
 ## [v4.0.2] - 2026-04-27
 
 **자기참조 결함 fix — template/hook commit-check regex 통일 (WI-E2-ci)**

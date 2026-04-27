@@ -393,7 +393,8 @@ vault_extract_transcript() {
   if [[ -n "$transcript_path" && -f "$transcript_path" ]]; then
     # v4.0: set -o pipefail 환경 대응. grep 매칭 없음(exit 1)이 파이프 실패로 전파되지 않도록 || true
     TRANSCRIPT_SESSION_START=$(head -1 "$transcript_path" | jq -r '.timestamp // empty' 2>/dev/null || true)
-    TRANSCRIPT_COMMITS=$(grep -oP 'WI-\d{3,4}(-\d+)?-\w+ [^"\\\\]+' "$transcript_path" 2>/dev/null | sort -u | head -15 || true)
+    # WI-E3: 영숫자 ID + 서브넘버링 통일 (학습 38 완결)
+    TRANSCRIPT_COMMITS=$(grep -oP 'WI-[0-9A-Za-z]+(-\d+)?-\w+ [^"\\\\]+' "$transcript_path" 2>/dev/null | sort -u | head -15 || true)
     TRANSCRIPT_PRS=$(grep -oP 'gh pr create[^"\\\\]*' "$transcript_path" 2>/dev/null | sort -u | head -5 || true)
     TRANSCRIPT_TOOL_COUNT=$(grep -c '"type":"tool_use"' "$transcript_path" 2>/dev/null || echo "0")
   fi
