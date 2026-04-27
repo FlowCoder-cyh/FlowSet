@@ -211,9 +211,8 @@ else
 fi
 
 # 실제 서브넘버링 메시지가 root grep + template bash regex 양쪽 매칭
-# root grep 패턴 추출
+# root grep 패턴 추출 (template은 인라인 bash regex로 직접 검증)
 root_pattern=$(grep -oE "'\^\(WI-\[0-9A-Za-z\]\+[^']+'" "$ROOT_CI" | head -1 | sed "s/^'//; s/'$//")
-template_re="$template_check_re"
 
 for msg in "WI-001-1-fix 후속 fix" "WI-A2a-1-fix 추가 보강"; do
   # root grep 매칭
