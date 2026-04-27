@@ -20,16 +20,23 @@
 - GitHub auto-Revert PR 머지 시 commit-msg reject 차단
 - Merge / Revert 자동 skip 일관 처리
 
-### Layer 4 — cross-check smoke (`tests/run-smoke-WI-E2.sh`, 39 assertion)
+### Layer 4 — cross-check smoke (`tests/run-smoke-WI-E2.sh`, 42 assertion)
 - 3곳 정규식 정합성 동적 검증 (root flowset-ci.yml ↔ template commit-check.yml ↔ template commit-msg)
 - 영숫자 ID 매칭 (실 사용 케이스 6개)
 - 서브넘버링 매칭 (3개)
 - 부정 케이스 reject (5개)
 - 시스템 커밋 + Merge/Revert auto-skip
 - REQUIRED_SCRIPTS ↔ 실제 디렉토리 카운트 + 각 파일명 정합
+- **root ↔ template 서브넘버링 양방향 정합** (evaluator POINT-MISSED 사전 발굴)
+
+### Layer 5 — root flowset-ci.yml 서브넘버링 그룹 동시 fix (evaluator 발굴)
+- 기존: `^(WI-[0-9A-Za-z]+-(type) .+|...)` — 서브넘버링 미지원 (templates와 비대칭)
+- 신규: `^(WI-[0-9A-Za-z]+(-[0-9]+)?-(type) .+|...)` — `WI-001-1-fix` 형식 매칭
+- evaluator 회의적 검증으로 사전 발굴: PR #47이 templates 영역만 fix하고 root에 동일 결함 잔존시 `WI-001-1-fix` 머지 시점 즉시 user-visible 회귀
+- 학습 37 일반화 — "templates ↔ root 양방향 cross-check 의무"
 
 ### CI 통합
-- `flowset-ci.yml` smoke job: 974 → **1013 assertion** (E2 39 신규)
+- `flowset-ci.yml` smoke job: 974 → **1016 assertion** (E2 42 신규, 서브넘버링 cross-check +3)
 
 ### 학습 패턴 (37개, +1)
 - **37**: FlowSet 자체와 templates의 정규식/스크립트 카운트 비일관 = 자기참조 결함. 메이저 리팩토링 후 templates도 같은 evolution 적용 의무. cross-check smoke로 영구 차단

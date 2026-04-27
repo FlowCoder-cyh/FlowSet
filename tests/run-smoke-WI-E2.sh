@@ -199,6 +199,45 @@ done
 
 # ============================================================================
 echo ""
+echo "=== WI-E2-7: root ↔ template 서브넘버링 양방향 정합 ==="
+# evaluator POINT-MISSED 사전 발굴: root flowset-ci.yml에서 (-[0-9]+)? 서브넘버링
+# 그룹 누락 시 templates는 매칭하지만 root는 reject — 자기참조 결함
+
+# root grep 패턴이 서브넘버링 지원
+if grep -qE 'WI-\[0-9A-Za-z\]\+\(-\[0-9\]\+\)\?-' "$ROOT_CI"; then
+  pass "root flowset-ci.yml: 서브넘버링 그룹 (-[0-9]+)? 명시 (templates와 양방향 정합)"
+else
+  fail "root flowset-ci.yml: 서브넘버링 그룹 누락 — WI-001-1-fix 형식 root에서 reject (자기참조 결함)"
+fi
+
+# 실제 서브넘버링 메시지가 root grep + template bash regex 양쪽 매칭
+# root grep 패턴 추출
+root_pattern=$(grep -oE "'\^\(WI-\[0-9A-Za-z\]\+[^']+'" "$ROOT_CI" | head -1 | sed "s/^'//; s/'$//")
+template_re="$template_check_re"
+
+for msg in "WI-001-1-fix 후속 fix" "WI-A2a-1-fix 추가 보강"; do
+  # root grep 매칭
+  if echo "$msg" | grep -qE "$root_pattern"; then
+    root_match=1
+  else
+    root_match=0
+  fi
+  # template bash regex 매칭
+  if [[ "$msg" =~ ^WI-[0-9A-Za-z]+(-[0-9]+)?-(feat|fix|docs|style|refactor|test|chore|perf|ci|revert)\ .+ ]]; then
+    template_match=1
+  else
+    template_match=0
+  fi
+
+  if [[ "$root_match" == "1" && "$template_match" == "1" ]]; then
+    pass "양방향 매칭 (root + template): $msg"
+  else
+    fail "양방향 매칭 불일치 (root=$root_match, template=$template_match): $msg"
+  fi
+done
+
+# ============================================================================
+echo ""
 echo "=== 총 결과 ==="
 echo "  PASS: $PASS"
 echo "  FAIL: $FAIL"
