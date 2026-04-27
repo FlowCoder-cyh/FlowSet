@@ -31,7 +31,7 @@ if [[ "$PUSHING_TO_MAIN" == true ]]; then
   echo "  main/master 브랜치에 직접 push할 수 없습니다."
   echo "  PR을 통해 머지하세요."
   echo ""
-  echo "  일반 커밋: WI-NNN-[type] 형식 (PR을 통해 머지)"
+  echo "  일반 커밋: WI-NNN-[type] 형식 (NNN = 영숫자 ID — 001/A2a/C3code/E1, PR을 통해 머지)"
   echo "  예외: WI-chore 프로젝트 초기*, WI-chore PRD 기반*, WI-chore fix_plan*"
   echo ""
   exit 1

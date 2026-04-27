@@ -29,7 +29,7 @@ append-system-prompt에 `[PARALLEL MODE]`가 포함되면 병렬 worktree에서 
 - 즉, 아래 절차에서 2, 5, 6단계 대신:
   ```bash
   git add {변경된 파일들}   # fix_plan.md 제외!
-  git commit -m "WI-{NNN}-{type} {한글 작업명}"
+  git commit -m "WI-{ID}-{type} {한글 작업명}"
   ```
   커밋만 하고 FLOWSET_STATUS 출력 후 즉시 종료
 - **주의:** 외부 루프가 이 브랜치를 push → PR 생성 → CI 검증 → auto-merge합니다. 코드 품질과 검증은 동일하게 적용됩니다.
@@ -73,7 +73,7 @@ TASKS_COMPLETED_THIS_LOOP: 1
 FILES_MODIFIED: 0
 TESTS_STATUS: NOT_RUN
 EXIT_SIGNAL: false
-SUMMARY: WI-{NNN} 스킵 — E2E 테스트는 대화형 세션에서 처리 필요
+SUMMARY: WI-{ID} 스킵 — E2E 테스트는 대화형 세션에서 처리 필요
 ---END_FLOWSET_STATUS---
 ```
 
@@ -117,7 +117,7 @@ git commit -m "WI-{ID}-{type} {한글 작업명}"  # 반드시 한글 포함 (ID
 git push origin {branch-name}
 
 # PR 생성
-gh pr create --title "WI-{NNN}-{type} {한글 작업명}" --body "## 작업 내용
+gh pr create --title "WI-{ID}-{type} {한글 작업명}" --body "## 작업 내용
 - {구현 내용 요약}
 
 ## 체크리스트
