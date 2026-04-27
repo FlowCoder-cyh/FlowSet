@@ -27,16 +27,34 @@
 - `validate_post_iteration()` bash regex 매칭 (영숫자 + 서브넘버링 + 시스템 + Merge/Revert 8건)
 - domain 추출 sed -E 시뮬레이션
 
-### CI 통합
-- `flowset-ci.yml` smoke job: 1016 → **1052 assertion** (E3 36 신규)
-- 미래 회귀(template/.flowset/* 영숫자 미지원 패턴 추가) 즉시 차단
+### Layer 5 — vault transcript PCRE + e2e JS regex 영숫자 통일 (evaluator 회의적 발굴)
+- **CRITICAL** `templates/lib/vault.sh:396` PCRE — `WI-\d{3,4}(-\d+)?-\w+` → `WI-[0-9A-Za-z]+(-\d+)?-\w+` (다운스트림 vault state.md/daily.md에서 영숫자 WI 누락 차단)
+- **CRITICAL** `.flowset/scripts/vault-helpers.sh:362` PCRE 동일 통일 — **루트 자기참조 결함** (FlowSet 본 저장소 vault transcript 추출에서 본인 작업(WI-E3 등) 누락 차단)
+- **MEDIUM** `templates/.github/workflows/e2e.yml:90` JS regex — `/WI-\d+/` → `/WI-[0-9A-Za-z]+(-\d+)?/` (다운스트림 e2e regression issue 자동 생성에서 영숫자 WI 누락 차단)
+- **LOW** `tests/test-vault-transcript.sh:141/145/154` 동일 PCRE 통일 + 영숫자 케이스 4건 추가 (35 assertion)
 
-### 학습 37 일반화 완결
-"FlowSet 자체와 templates의 정규식 비일관 = 자기참조 결함" + "단일 방향 fix는 반대/측면 위치에 잔존 가능" — WI-E2가 commit-check 영역만 fix하고 flowset.sh/merge.sh/task-completed-eval에 같은 결함 잔존시킨 패턴이 정확한 evidence. **메이저 리팩토링 후 templates 전 영역 grep 필수** (학습 38 후보).
+### Layer 6 — sentinel grep CI 게이트 (학습 38 영구 차단)
+- WI-E3 smoke에 sentinel section 신설 (4 assertion):
+  - `'WI-\d{3,4}'` literal (PCRE 코드 안)
+  - `'WI-\d+'` literal (PCRE 코드 안)
+  - `'WI-[0-9]+'` 단독 정규식
+  - `'WI-[0-9]{3,4}'` 한정 정규식
+- 영역: `templates/`, `.flowset/scripts/`, `.github/`
+- smoke 자체(WI-E2/E3 부정 케이스 포함)는 exclude
+- 미래 회귀(영숫자 미지원 패턴 추가) PR CI에서 즉시 차단
+
+### CI 통합
+- `flowset-ci.yml` smoke job: 1016 → **1070 assertion** (E3 50 + test-vault-transcript 31→35)
+- 미래 회귀(template/.flowset/.github 영숫자 미지원 패턴) 즉시 차단
+
+### 학습 37 → 38 일반화 완결
+- **37**: FlowSet 자체와 templates 정규식 비일관 = 자기참조 결함
+- **38** (본격 채택): "메이저 리팩토링 후 templates 전 영역 grep 필수" + sentinel CI 게이트로 영구 차단
+- **self-violation 차단**: WI-E2/E3가 단계적 fix를 시도하면서 매 사이클 evaluator가 새 영역 발굴 → 본 PR이 sentinel grep으로 회귀 사이클 종결
 
 ### 주요 파일 변경
-- 갱신: `templates/flowset.sh` (5건), `templates/lib/merge.sh` (2건), `templates/.flowset/scripts/task-completed-eval.sh` (1건), `.github/workflows/flowset-ci.yml`, `CHANGELOG.md`
-- 신규: `tests/run-smoke-WI-E3.sh` — `tests/run-smoke-WI-*.sh` 25개 누적
+- 갱신: `templates/flowset.sh` (5건), `templates/lib/merge.sh` (2건), `templates/.flowset/scripts/task-completed-eval.sh` (1건), `templates/lib/vault.sh` (1건, Layer 5), `templates/.github/workflows/e2e.yml` (1건, Layer 5), `.flowset/scripts/vault-helpers.sh` (1건, 루트 자기참조), `tests/test-vault-transcript.sh` (4건 영숫자 케이스 추가), `.github/workflows/flowset-ci.yml`, `CHANGELOG.md`
+- 신규: `tests/run-smoke-WI-E3.sh` (50 assertion) — `tests/run-smoke-WI-*.sh` 25개 누적
 
 ## [v4.0.2] - 2026-04-27
 

@@ -203,6 +203,95 @@ done
 
 # ============================================================================
 echo ""
+echo "=== WI-E3-9: vault transcript PCRE 영숫자 추출 시뮬레이션 ==="
+# evaluator POINT-NEW 영역 — vault.sh:396 + vault-helpers.sh:362 PCRE 패턴
+
+for line in \
+  '"WI-001-feat 사용자 인증 추가"' \
+  '"WI-A2a-refactor lib/state.sh 모듈 분리"' \
+  '"WI-C3code-fix evaluator MEDIUM 즉시 해소"' \
+  '"WI-E1cifix-fix evaluator CRITICAL 즉시 해소"' \
+  '"WI-001-1-fix 핫픽스"' \
+  '"WI-A2a-1-fix 추가 보강"'; do
+  result=$(echo "$line" | grep -oP 'WI-[0-9A-Za-z]+(-\d+)?-\w+ [^"\\\\]+' 2>/dev/null || true)
+  if [[ -n "$result" ]]; then
+    pass "vault PCRE 추출: $line → $result"
+  else
+    fail "vault PCRE 추출 실패: $line (vault state.md에서 영숫자 WI 누락)"
+  fi
+done
+
+# ============================================================================
+echo ""
+echo "=== WI-E3-10: e2e.yml JS regex 영숫자 추출 시뮬레이션 ==="
+# 학습 38 영역 — e2e regression issue 자동 생성
+
+# JS regex /WI-[0-9A-Za-z]+(-\d+)?/ 를 bash regex로 시뮬레이션
+for title in \
+  "WI-001: 휴가 신청 폼" \
+  "WI-A2a: 모듈 분리 검증" \
+  "WI-C3code: B2 차단 검증" \
+  "WI-001-1: 후속 핫픽스"; do
+  if [[ "$title" =~ WI-[0-9A-Za-z]+(-[0-9]+)? ]]; then
+    matched="${BASH_REMATCH[0]}"
+    pass "e2e regex 추출: $title → $matched"
+  else
+    fail "e2e regex 추출 실패: $title (regression issue ${WI_NUM} 빈값)"
+  fi
+done
+
+# ============================================================================
+echo ""
+echo "=== WI-E3-11: sentinel grep — 영숫자 미지원 패턴 잔존 0건 (학습 38 영구 차단) ==="
+# 학습 38: "메이저 리팩토링 후 templates 전 영역 grep 필수"
+# 영숫자 미지원 PCRE 'WI-\d{3,4}', 'WI-\d+' 패턴이 templates/.flowset/.github에 잔존하지 않음
+
+# smoke 파일 자체에는 회귀 차단용으로 의도적 등장 — 제외
+SENTINEL_EXCLUDES=(
+  --exclude-dir=bats
+  --exclude=run-smoke-WI-E2.sh
+  --exclude=run-smoke-WI-E3.sh
+)
+
+# 패턴 1: PCRE 'WI-\d{3,4}' (literal 백슬래시 + d{3,4})
+matches=$(grep -rF 'WI-\d{3,4}' templates/ .flowset/scripts/ .github/ "${SENTINEL_EXCLUDES[@]}" 2>/dev/null || true)
+if [[ -z "$matches" ]]; then
+  pass "sentinel: 'WI-\\d{3,4}' 영숫자 미지원 PCRE 잔존 0건"
+else
+  fail "sentinel: 'WI-\\d{3,4}' 잔존 — 영숫자 silent fail 위험"
+  echo "$matches" | head -5 | sed 's/^/    /'
+fi
+
+# 패턴 2: PCRE 'WI-\d+' 단독 (영숫자 미지원)
+matches=$(grep -rF 'WI-\d+' templates/ .flowset/scripts/ .github/ "${SENTINEL_EXCLUDES[@]}" 2>/dev/null || true)
+if [[ -z "$matches" ]]; then
+  pass "sentinel: 'WI-\\d+' 단독 패턴 잔존 0건"
+else
+  fail "sentinel: 'WI-\\d+' 잔존 — 영숫자 silent fail 위험"
+  echo "$matches" | head -5 | sed 's/^/    /'
+fi
+
+# 패턴 3: BRE/ERE 'WI-[0-9]+' 정규식 (영숫자 미지원, 단순 grep -F)
+# templates/scripts (.flowset/scripts/) 코드 안의 정규식 패턴 검사
+matches=$(grep -rF "'WI-[0-9]+" templates/ .flowset/scripts/ .github/ "${SENTINEL_EXCLUDES[@]}" 2>/dev/null || true)
+if [[ -z "$matches" ]]; then
+  pass "sentinel: 'WI-[0-9]+' 단독 정규식 잔존 0건"
+else
+  fail "sentinel: 'WI-[0-9]+' 단독 정규식 잔존"
+  echo "$matches" | head -5 | sed 's/^/    /'
+fi
+
+# 패턴 4: BRE 'WI-[0-9]{3,4}' (templates/.flowset/.github 영역)
+matches=$(grep -rE "WI-\[0-9\]\{3,4\}" templates/ .flowset/scripts/ .github/ "${SENTINEL_EXCLUDES[@]}" 2>/dev/null || true)
+if [[ -z "$matches" ]]; then
+  pass "sentinel: 'WI-[0-9]{3,4}' 한정 패턴 잔존 0건"
+else
+  fail "sentinel: 'WI-[0-9]{3,4}' 한정 패턴 잔존"
+  echo "$matches" | head -5 | sed 's/^/    /'
+fi
+
+# ============================================================================
+echo ""
 echo "=== 총 결과 ==="
 echo "  PASS: $PASS"
 echo "  FAIL: $FAIL"

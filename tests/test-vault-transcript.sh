@@ -138,11 +138,11 @@ echo ""
 echo "=== PCRE 패턴 엣지케이스 ==="
 
 echo "[4.1] 한글 작업명"
-result=$(echo '"WI-001-feat 사용자 인증 추가"' | grep -oP 'WI-\d{3,4}(-\d+)?-\w+ [^"\\\\]+' 2>/dev/null || true)
+result=$(echo '"WI-001-feat 사용자 인증 추가"' | grep -oP 'WI-[0-9A-Za-z]+(-\d+)?-\w+ [^"\\\\]+' 2>/dev/null || true)
 assert_eq "한글 커밋" "WI-001-feat 사용자 인증 추가" "$result"
 
 echo "[4.2] 서브넘버링 (WI-001-1-fix)"
-result=$(echo '"WI-001-1-fix 핫픽스"' | grep -oP 'WI-\d{3,4}(-\d+)?-\w+ [^"\\\\]+' 2>/dev/null || true)
+result=$(echo '"WI-001-1-fix 핫픽스"' | grep -oP 'WI-[0-9A-Za-z]+(-\d+)?-\w+ [^"\\\\]+' 2>/dev/null || true)
 assert_eq "서브넘버" "WI-001-1-fix 핫픽스" "$result"
 
 echo "[4.3] PR 추출"
@@ -151,8 +151,25 @@ assert_eq "pr create" "gh pr create --title test --body ok" "$result"
 
 echo "[4.4] 매칭 없는 입력"
 # grep 매칭 실패 시 exit 1 반환 → set -e 회피를 위해 || true
-result=$(echo '"일반 텍스트"' | grep -oP 'WI-\d{3,4}(-\d+)?-\w+ [^"\\\\]+' 2>/dev/null || true)
+result=$(echo '"일반 텍스트"' | grep -oP 'WI-[0-9A-Za-z]+(-\d+)?-\w+ [^"\\\\]+' 2>/dev/null || true)
 assert_empty "no match" "$result"
+
+# WI-E3: 영숫자 ID 케이스 추가 (학습 38 일반화 — vault transcript 영숫자 WI 추출)
+echo "[4.5] 영숫자 ID (WI-A2a-refactor)"
+result=$(echo '"WI-A2a-refactor lib/state.sh 모듈 분리"' | grep -oP 'WI-[0-9A-Za-z]+(-\d+)?-\w+ [^"\\\\]+' 2>/dev/null || true)
+assert_eq "영숫자 ID" "WI-A2a-refactor lib/state.sh 모듈 분리" "$result"
+
+echo "[4.6] 영숫자 + 서브넘버 (WI-A2a-1-fix)"
+result=$(echo '"WI-A2a-1-fix 추가 보강"' | grep -oP 'WI-[0-9A-Za-z]+(-\d+)?-\w+ [^"\\\\]+' 2>/dev/null || true)
+assert_eq "영숫자 서브" "WI-A2a-1-fix 추가 보강" "$result"
+
+echo "[4.7] 영숫자 ID (WI-C3code-fix)"
+result=$(echo '"WI-C3code-fix evaluator MEDIUM 즉시 해소"' | grep -oP 'WI-[0-9A-Za-z]+(-\d+)?-\w+ [^"\\\\]+' 2>/dev/null || true)
+assert_eq "영숫자 C3code" "WI-C3code-fix evaluator MEDIUM 즉시 해소" "$result"
+
+echo "[4.8] 영숫자 ID (WI-E1cifix-fix)"
+result=$(echo '"WI-E1cifix-fix evaluator CRITICAL 즉시 해소"' | grep -oP 'WI-[0-9A-Za-z]+(-\d+)?-\w+ [^"\\\\]+' 2>/dev/null || true)
+assert_eq "영숫자 E1cifix" "WI-E1cifix-fix evaluator CRITICAL 즉시 해소" "$result"
 
 # --- 테스트 5: cch sanitize ---
 echo ""
